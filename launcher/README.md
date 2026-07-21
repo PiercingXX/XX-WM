@@ -4,26 +4,27 @@ GTK4/libadwaita launcher + shell surfaces for Linux phones. Despite the "WM" nam
 
 ## What's built
 
-- **Home surface** (`window.py`) — BOTTOM layer, full-screen. Pinned app slots (edit mode, +/− pin), clock/date, battery+network status strip, search, swipe nav to Apps/Settings.
-- **Lock screen** (`lock_screen.py`) — OVERLAY layer, 6-digit PIN keypad, shake on wrong PIN, 30s clock refresh.
-- **Notification shade** (`notification_shade.py`) — TOP layer, slide-down reveal, in-process notification daemon (`notif_daemon.py`), tap-to-launch, swipe-to-dismiss, quick actions embedded.
-- **App switcher** (`app_switcher.py`) — TOP layer, slide-up reveal, swipe card up to kill app.
-- **Quick actions** (`quick_actions.py`) — WiFi, BT, mobile data, airplane, torch, sliders for brightness and volume.
-- **Call UI** (`call_ui.py`) — OVERLAY, incoming/active call, mute, speakerphone (pactl UCM), timer, in-call bar.
-- **Dialer** (`dialer.py`) — 12-key keypad, US number formatting, mmcli voice call.
-- **SMS** (`sms.py`) — Conversation bubble view, send via mmcli.
-- **First-boot wizard** (`first_boot.py`) — PIN setup, theme, timezone.
-- **IPC server** (`ipc.py`) — Unix socket at `$XDG_RUNTIME_DIR/piercing-shell.sock`.
+- **Home surface** (`window.py`, `home_launcher.py`) — BOTTOM layer. 8-slot home model with inline folder drop-downs, long-press edit mode, config-driven widget row (time/date/weather/battery with tap actions), gesture dispatch (`launch:<app_id>` bindings), config hot reload.
+- **App drawer** (`window.py`, `app_index.py`) — ~85% bottom sheet, bottom search with bottom-anchored results, A–Z jump strip, A–Z ↔ install-date sort, pinned-first ordering, inline folder rows, `!` web search, auto-launch option, long-press action menus (`app_item_actions.py`).
+- **Lock screen** (`lock_screen.py`) — OVERLAY layer, swipe-up unlock revealing the 6-digit keypad, escalating lockout, fingerprint, notification list (summary/count/off, DnD-aware).
+- **Notification shade** (`notification_shade.py`) — TOP layer, date/time header with inline month calendar (`calendar_grid.py`), Settings entry, in-process daemon (`notif_daemon.py`), tap-to-launch, swipe-to-dismiss, clear all, quick actions embedded.
+- **DnD & Focus** (`dnd.py`, `focus_mode.py`) — Pixel-model Do Not Disturb (schedules, starred contacts, repeat callers) and Focus Mode (paused apps, held notifications, take-a-break), wired through tiles, calls, and the notification path.
+- **Quick actions** (`quick_actions.py`) — WiFi, BT, mobile data, airplane, torch, DnD, Focus; brightness/volume sliders; hardware-gated tiles hide themselves.
+- **Sounds** (`sound.py`, `data/sounds/`) — ringtone loop + notification sound via paplay/pw-play, gated by config, DnD, mutes.
+- **Weather** (`weather.py`) — Open-Meteo current conditions, 15-min cache, silent offline fallback.
+- **System settings** (`system_settings.py`) — WiFi scan/connect (nmcli), Bluetooth scan/pair (BlueZ D-Bus), sound output picker (pactl), battery (UPower); the settings page is system-only — every shell preference lives in `~/.config/piercing-shell/` (`../docs/config.md`).
+- **Backup** (`backup.py`) — versioned JSON export/restore with validate-before-write.
+- **Call UI / Dialer / SMS** (`call_ui.py`, `dialer.py`, `sms.py`) — mmcli/ModemManager telephony surfaces; dialer rows star contacts for DnD.
+- **First-boot wizard** (`first_boot.py`) — PIN, theme, timezone, then the interactive gesture walkthrough (replay with `piercing-shell --welcome`).
+- **IPC server** (`ipc.py`) — Unix socket at `$XDG_RUNTIME_DIR/piercing-shell.sock` (`lock`, `shade.*`, `switcher.*`, `gesture.*`, `welcome`).
 - **Modem monitor** (`modem_monitor.py`) — ModemManager DBus watcher for call events.
 - **Back arrow overlay** (`back_gesture.py`) — visual feedback only; gesture detection is lisgd's job, delivered via `gesture.*` IPC commands.
-- **Sounds** (`data/sounds/`) — ringtone + notification sounds (wiring: todo.md Phase 2).
 
-## What's not done yet
+## What's not done yet (device-gated)
 
-- Spec gaps — 8-slot home model, widgets config, `!` web search, rename labels, theme presets, JSON backup (`../todo.md` Phase 1)
-- Device bring-up: evdev paths, IIO sensor path, wlopm output name (Phase 3)
-- lisgd gesture service wiring, wob HUD, squeekboard keyboard (PiercingXX Colemak layouts) (Phases 2–3)
-- Telephony verification on device (Phase 3; VoLTE testing on the FLX1 in Phase 4)
+- Device bring-up: flashing, evdev paths, IIO sensor path, wlopm output name (`../devices/*/notes.md`)
+- lisgd/wob/squeekboard runtime verification, gesture threshold calibration, telephony testing
+- Waydroid init + microG + Android app installs (`../todo.md` Workstream 17.6/17.7)
 - App switcher live window list — blocked on `wlr-foreign-toplevel-management-unstable-v1` in phoc
 - Performance baseline — needs device testing (Librem 5 is the canary)
 
@@ -51,7 +52,7 @@ export PIERCING_USER=user   # pmos default; check per device
 ./scripts/deploy.sh
 ```
 
-`deploy.sh` rsyncs `src/` to the device and restarts the shell service. (Script written in Phase 3, after first SSH.)
+`deploy.sh` rsyncs `src/` to the device and restarts the shell service (systemd user unit or OpenRC). `--dry-run` prints the commands without touching anything. Full installs go through `scripts/install.sh` (whiptail menu: Install / Update / Install phone apps).
 
 ## Device checks to run first
 
@@ -66,10 +67,11 @@ ps -p 1                            # systemd or OpenRC?
 ## Session config
 
 - Wayland session: `wayland-sessions/piercingos.session`
-- Session launcher: `libexec/piercing-session` (phoc wrapper, sets GTK_THEME from config)
-- systemd user service: `share/systemd/user/piercing-shell.service` (`Restart=on-failure`) — OpenRC variant needed for postmarketOS default images
+- Session launcher: `libexec/piercing-session` (phoc wrapper, sets GTK_THEME from config); the in-session `bin/piercing-shell` starts squeekboard before the shell
+- systemd user service: `share/systemd/user/piercing-shell.service` (`Restart=on-failure`); OpenRC: `data/openrc/piercing-shell` → `/etc/init.d/` (postmarketOS default images)
+- Keyboard layouts: `data/squeekboard/` (PiercingXX Colemak, incl. terminal/email/url variants) → `datadir/piercing-shell/squeekboard`, symlinked by install.sh to `~/.local/share/squeekboard/keyboards/`
 - phoc.ini: display scale per device (`devices/*/notes.md`); currently set for the FP5 (2.5)
 
 ## Fonts
 
-Space Mono (default), JetBrains Mono, JetBrains Mono Nerd (per the design spec). Install per distro; overlay dir fallback for Space Mono.
+JetBrains Mono Nerd (default), Space Mono, JetBrains Mono, System Light, plus user-imported custom fonts (`config.install_custom_font`). Install per distro; overlay dir fallback.

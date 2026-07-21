@@ -24,7 +24,12 @@ echo "=== Running shellcheck ==="
 if command -v shellcheck >/dev/null 2>&1; then
     for f in scripts/*.sh devices/*/*.sh; do
         if [ -f "$f" ]; then
-            shellcheck -s sh "$f" || {
+            # -s sh, or -s bash where the shebang says bash
+            dialect="sh"
+            case "$(head -1 "$f")" in
+                *bash*) dialect="bash" ;;
+            esac
+            shellcheck -s "$dialect" "$f" || {
                 echo "shellcheck FAILED on $f"
                 exit 1
             }

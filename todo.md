@@ -107,7 +107,7 @@ Installer pattern: whiptail menu, cached sudo, network check up front.
 
 - [x] **10.1 `tests/` with pytest** — pure-logic coverage, no GTK imports needed: `config.py` (defaults, migration, slot validation), `default_layout.py` (fake resolver: full/partial/none resolution, never-overwrite), `backup.py` (6.3), `gesture_config.py` (unknown key/action rejection, `launch:` validation), `app_index.py` search matching + sort modes, weather cache logic. Guard GTK-importing modules out of test collection (`tests/conftest.py`).
 - [x] **10.2 CI-ish gate script** — `scripts/check.sh`: `py_compile` all sources + `pytest -q` + `shellcheck`. This is the pre-commit gate; run it before every commit.
-- [ ] **10.3 Docs drift** — when a workstream lands, tick it here and update `design.md`/`launcher/README.md` if behavior diverged from spec (e.g. the APK-size sort omission).
+- [x] **10.3 Docs drift** — when a workstream lands, tick it here and update `design.md`/`launcher/README.md` if behavior diverged from spec (e.g. the APK-size sort omission).
 
 ## Workstream 11 — Lock screen v2 (swipe + notifications)
 
