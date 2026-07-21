@@ -43,6 +43,20 @@ meson setup build --prefix=/usr
 meson install -C build
 ```
 
+## Tests & the pre-commit gate
+
+`scripts/check.sh` is the gate: py_compile + ruff + pytest + shellcheck.
+pytest needs PyGObject, so the venv must see system site packages:
+
+```bash
+python3 -m venv --system-site-packages .venv   # .venv is gitignored
+.venv/bin/pip install pytest ruff
+PATH="$PWD/.venv/bin:$PATH" sh scripts/check.sh
+```
+
+shellcheck comes from the distro (`pacman -S shellcheck` / `apk add
+shellcheck`); the gate skips any tool that isn't on PATH rather than fail.
+
 ## Deploy to device
 
 ```bash
