@@ -135,7 +135,7 @@ _KEYPAD: list[tuple[str, str]] = [
     ('',  ''),    ('0', ''),    ('←', ''),
 ]
 
-_MAX_PIN = 8
+_MAX_PIN = 64
 _FAIL_THRESHOLD = 5     # wrong attempts before first lockout
 _SWIPE_UNLOCK_VELOCITY = -300
 
@@ -169,7 +169,7 @@ class LockScreen(Gtk.Window):
                  get_notifications: Callable[[], list[tuple[str, str]]] | None = None,
                  dnd_active_fn: Callable[[], bool] | None = None,
                  on_open_shade: Callable[[], None] | None = None) -> None:
-        super().__init__(title='PiercingOS')
+        super().__init__(title='PiercingXX')
 
         if _LAYER_SHELL and LayerShell.is_supported():
             LayerShell.init_for_window(self)
@@ -519,6 +519,8 @@ class LockScreen(Gtk.Window):
             return
         if self._fp_running:
             return
+        if not self._fp_available():
+            return
         self._fp_running = True
         self._fp_hint.set_label('Checking fingerprint…')
         threading.Thread(target=self._fp_thread, daemon=True, name='fp-verify').start()
@@ -546,12 +548,26 @@ class LockScreen(Gtk.Window):
         return GLib.SOURCE_REMOVE
 
     def _update_fp_hint(self) -> None:
-        try:
-            subprocess.run(['fprintd-verify', '--help'],
-                           capture_output=True, timeout=1)
-            self._fp_hint.set_label('Touch fingerprint sensor to unlock')
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            self._fp_hint.set_label('')
+        self._fp_hint.set_label(
+            'Touch fingerprint sensor to unlock' if self._fp_available() else '')
+
+    _fp_usable: bool | None = None
+
+    @classmethod
+    def _fp_available(cls) -> bool:
+        """True only with a reachable fprintd sensor AND enrolled prints —
+        a merely installed fprintd binary must not produce the unlock hint."""
+        if cls._fp_usable is None:
+            user = os.environ.get('USER', os.environ.get('LOGNAME', 'user'))
+            try:
+                r = subprocess.run(['fprintd-list', user],
+                                   capture_output=True, timeout=3, text=True)
+                out = (r.stdout + r.stderr).lower()
+                cls._fp_usable = (r.returncode == 0 and 'finger' in out
+                                  and 'no fingers enrolled' not in out)
+            except (OSError, subprocess.SubprocessError):
+                cls._fp_usable = False
+        return cls._fp_usable
 
     # ------------------------------------------------------------------
     # Shake + clock
