@@ -73,7 +73,7 @@ System-level gestures (swipe up, edge swipes) belong to lisgd + IPC because they
 
 ## Themes
 
-Six presets + custom solid colors. Backgrounds are **solid colors only** — never wallpaper images.
+Eight presets + custom solid colors. Backgrounds are **solid colors only** — never wallpaper images.
 
 | Preset | Mode | Background |
 |---|---|---|
@@ -83,8 +83,10 @@ Six presets + custom solid colors. Backgrounds are **solid colors only** — nev
 | Ocean | dark | `#0F1C2E` |
 | Paper | light | `#F3EEE2` |
 | Mist | light | `#E6EDF5` |
+| Aura | dark | `#0d0b14` |
+| Burgundy | dark | `#2A1018` |
 
-Extra named color: Burgundy `#2A1018`. Light/dark/system mode switch. Text size scaling and per-surface alignment. **Theme changes apply instantly** — no preview/confirm step.
+Light/dark/system mode switch. Text size scaling and per-surface alignment. **Theme changes apply instantly** — no preview/confirm step.
 
 ## Fonts
 

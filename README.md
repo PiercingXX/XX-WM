@@ -22,7 +22,7 @@ The default home screen: AMOLED black, centered, JetBrains Mono Nerd. A clock, t
 
 ![The six theme presets side by side: AMOLED, Graphite, Forest, Ocean, Paper, and Mist](docs/images/theme-presets.jpg)
 
-Six built-in theme presets — AMOLED, Graphite, Forest, Ocean, Paper, and Mist — all solid colors, all text-first.
+Eight built-in theme presets — AMOLED, Graphite, Forest, Ocean, Paper, Mist, Aura, and Burgundy — all solid colors, all text-first.
 
 ## Design principles
 
