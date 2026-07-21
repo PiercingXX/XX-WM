@@ -80,6 +80,10 @@ DEFAULT_CONFIG = {
     'dnd_enabled': False,
     'dnd_schedules': [],
     'dnd_starred_numbers': [],
+    'focus_enabled': False,
+    'focus_apps': [],
+    'focus_schedules': [],
+    'focus_break_until': 0.0,
     'sound_ringtone': True,
     'sound_notifications': True,
     'widgets': {

@@ -217,6 +217,7 @@ _TILES: list[_TileDef] = [
     _TileDef('airplane', 'Airplane', lambda: None,                        _toggle_airplane,                        1),
     _TileDef('torch',    'Torch',    lambda: None,                        _toggle_torch,                           2),
     _TileDef('dnd',      'DnD',      lambda: None,                        lambda _v: None,                         2),
+    _TileDef('focus',    'Focus',    lambda: None,                        lambda _v: None,                         2),
     _TileDef('auto_br',  'Auto',     lambda: None,                        lambda _v: None,                         2),
     _TileDef('location', 'Location', lambda: None,                        lambda _v: None,                         2),
     _TileDef('hotspot',  'Hotspot',  lambda: None,                        lambda _v: None,                         2),
@@ -229,11 +230,13 @@ class QuickActionsPanel(Gtk.Box):
     Embed in NotificationShade. Call expand(True/False) to show tier-2 + sliders.
     """
 
-    def __init__(self, dnd_state: object | None = None) -> None:
+    def __init__(self, dnd_state: object | None = None,
+                 focus_state: object | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.add_css_class('qa-panel')
 
         self._dnd = dnd_state
+        self._focus = focus_state
         self._tile_buttons: dict[str, Gtk.ToggleButton] = {}
         self._tile_state: dict[str, bool] = {}
         self._state_labels: dict[str, Gtk.Label] = {}
@@ -267,6 +270,13 @@ class QuickActionsPanel(Gtk.Box):
                 tile = tile._replace(
                     get_state=lambda: bool(self._dnd.is_active()),
                     set_state=lambda v: self._dnd.set_enabled(v),
+                )
+            if tile.key == 'focus':
+                if self._focus is None:
+                    continue
+                tile = tile._replace(
+                    get_state=lambda: bool(self._focus.is_active()),
+                    set_state=lambda v: self._focus.set_enabled(v),
                 )
             tiles.append(tile)
         return tiles
@@ -317,8 +327,40 @@ class QuickActionsPanel(Gtk.Box):
         btn.add_css_class('qa-tile')
         btn.set_child(inner)
         btn.connect('toggled', self._on_tile_toggled, tile)
+        if tile.key == 'focus':
+            # Long-press → take a break (focus suspends, auto-resumes)
+            long_press = Gtk.GestureLongPress.new()
+            long_press.set_touch_only(False)
+            long_press.connect('pressed', self._on_focus_long_press, btn)
+            btn.add_controller(long_press)
         self._tile_buttons[tile.key] = btn
         return btn
+
+    def _on_focus_long_press(self, gesture: Gtk.GestureLongPress,
+                             _x: float, _y: float, btn: Gtk.Widget) -> None:
+        if self._focus is None:
+            return
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        popover = Gtk.Popover()
+        popover.add_css_class('action-menu')
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        for minutes in (5, 10, 15):
+            action = Gtk.Button(label=f'Take a break — {minutes} min')
+            action.add_css_class('flat')
+            action.add_css_class('menu-action')
+            action.connect(
+                'clicked',
+                lambda _b, m=minutes, p=popover: self._start_focus_break(m, p))
+            box.append(action)
+        popover.set_child(box)
+        popover.set_parent(btn)
+        popover.connect('closed', lambda p: p.unparent())
+        popover.popup()
+
+    def _start_focus_break(self, minutes: int, popover: Gtk.Popover) -> None:
+        popover.popdown()
+        self._focus.start_break(minutes)
+        self.refresh_states()
 
     def _build_sliders(self) -> None:
         for label_text, getter, setter in [

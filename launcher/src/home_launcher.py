@@ -125,7 +125,8 @@ class HomeLauncher(Gtk.Box):
                  on_slot_move: Callable[[int, int], None] | None = None,
                  on_slot_remove: Callable[[int], None] | None = None,
                  on_slot_rename: Callable[[Gtk.Widget, int], None] | None = None,
-                 on_edit_action: Callable[[str, Gtk.Widget], None] | None = None) -> None:
+                 on_edit_action: Callable[[str, Gtk.Widget], None] | None = None,
+                 is_paused_fn: Callable[[str], bool] | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_vexpand(True)
         self._open_dialer = open_dialer_fn
@@ -136,6 +137,7 @@ class HomeLauncher(Gtk.Box):
         self._on_slot_remove = on_slot_remove or (lambda idx: None)
         self._on_slot_rename = on_slot_rename or (lambda widget, idx: None)
         self._on_edit_action = on_edit_action or (lambda action, widget: None)
+        self._is_paused = is_paused_fn or (lambda app_id: False)
         self._open_folder_index: int | None = None
         self.edit_mode = False
         self._build()
@@ -186,7 +188,8 @@ class HomeLauncher(Gtk.Box):
             slot_type = slot.get('type')
             if slot_type == 'app':
                 self.append(self._make_row(slot.get('label', ''),
-                                           lambda s=slot: self._on_launch_slot(s)))
+                                           lambda s=slot: self._on_launch_slot(s),
+                                           paused=self._is_paused(str(slot.get('app_id') or ''))))
             elif slot_type == 'folder':
                 self.append(self._make_folder_row(slot, idx))
                 if idx == open_idx:
@@ -243,7 +246,8 @@ class HomeLauncher(Gtk.Box):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         for m_idx, member in enumerate(slot.get('folder', [])):
             row = self._make_row(member.get('label', ''),
-                                 lambda m=member: self._tap_member(m))
+                                 lambda m=member: self._tap_member(m),
+                                 paused=self._is_paused(str(member.get('app_id') or '')))
             if self._on_member_long_press is not None:
                 def _on_long_press(gesture: Gtk.GestureLongPress, _x: float, _y: float,
                                    w: Gtk.Widget = row, s: int = slot_index, m: int = m_idx) -> None:
@@ -268,13 +272,16 @@ class HomeLauncher(Gtk.Box):
         revealer.set_reveal_child(True)
         return GLib.SOURCE_REMOVE
 
-    def _make_row(self, label: str, on_tap: Callable[[], None]) -> Gtk.Button:
-        lbl = Gtk.Label(label=label)
+    def _make_row(self, label: str, on_tap: Callable[[], None],
+                  paused: bool = False) -> Gtk.Button:
+        lbl = Gtk.Label(label=label + (' · paused' if paused else ''))
         lbl.set_halign(Gtk.Align.CENTER)
         lbl.add_css_class('home-item-label')
 
         btn = Gtk.Button()
         btn.add_css_class('home-item-btn')
+        if paused:
+            btn.add_css_class('paused')
         btn.set_hexpand(True)
         btn.set_child(lbl)
         btn.connect('clicked', lambda _b: on_tap())

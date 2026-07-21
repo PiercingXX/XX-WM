@@ -48,7 +48,9 @@ class ShellWindow(Adw.ApplicationWindow):
         self.config = ShellConfig()
         self.gesture_config = GestureConfig()
         from dnd import DndState
+        from focus_mode import FocusState
         self.dnd_state = DndState(self.config)
+        self.focus_state = FocusState(self.config)
         self.app_index = AppIndex()
         self.app_index.refresh()
 
@@ -98,6 +100,7 @@ class ShellWindow(Adw.ApplicationWindow):
             self.config,
             on_changed=self._refresh_after_item_action,
             on_status=self._show_status,
+            focus_state=self.focus_state,
         )
 
         self.apps_search = Gtk.SearchEntry(placeholder_text='Filter apps')
@@ -278,6 +281,23 @@ class ShellWindow(Adw.ApplicationWindow):
             if camera is not None:
                 self._launch_entry(camera)
 
+    def _show_focus_notice(self, label: str) -> None:
+        actions = [(f'Take a break ({m} min)',
+                    lambda mins=m: self._start_focus_break(mins))
+                   for m in (5, 10, 15)]
+        actions.append(('Turn off Focus', self._turn_off_focus))
+        self.item_actions._show_action_menu(self.stack, f'{label} is paused', actions)
+
+    def _start_focus_break(self, minutes: int) -> None:
+        self.focus_state.start_break(minutes)
+        self._refresh_after_item_action()
+        self._show_status(f'Focus paused for {minutes} minutes.')
+
+    def _turn_off_focus(self) -> None:
+        self.focus_state.set_enabled(False)
+        self._refresh_after_item_action()
+        self._show_status('Focus turned off.')
+
     def _launch_app_id(self, app_id: str) -> None:
         from gi.repository import Gio
         try:
@@ -378,6 +398,7 @@ class ShellWindow(Adw.ApplicationWindow):
             on_slot_remove=self._remove_slot,
             on_slot_rename=self._rename_slot,
             on_edit_action=self._on_edit_action,
+            is_paused_fn=self.focus_state.is_paused_app,
         )
 
         launcher_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -445,8 +466,11 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _launch_slot(self, slot: dict) -> None:
         """Launch an app or command from a home slot."""
-        # Record usage
         app_id = slot.get('app_id')
+        if app_id and self.focus_state.is_paused_app(str(app_id)):
+            self._show_focus_notice(slot.get('label', 'App'))
+            return
+        # Record usage
         if app_id:
             self.config.record_launch(app_id)
 
@@ -612,6 +636,7 @@ class ShellWindow(Adw.ApplicationWindow):
             from notification_shade import NotificationShade
             self._shade = NotificationShade(
                 dnd_state=self.dnd_state,
+                focus_state=self.focus_state,
                 on_open_settings=lambda: (
                     self.stack.set_visible_child_name('settings'), self.present()),
             )
@@ -1193,7 +1218,9 @@ class ShellWindow(Adw.ApplicationWindow):
         return row
 
     def _make_drawer_member_row(self, slot_index: int, member_index: int, member: dict) -> Gtk.ListBoxRow:
-        title = Gtk.Label(label=member.get('label', ''), xalign=0)
+        label = member.get('label', '')
+        paused = self.focus_state.is_paused_app(str(member.get('app_id') or ''))
+        title = Gtk.Label(label=label + (' · paused' if paused else ''), xalign=0)
         title.add_css_class('app-name')
         title.set_hexpand(True)
 
@@ -1201,6 +1228,8 @@ class ShellWindow(Adw.ApplicationWindow):
         btn.add_css_class('flat')
         btn.add_css_class('app-entry')
         btn.add_css_class('folder-member')
+        if paused:
+            btn.add_css_class('paused')
         btn.set_child(title)
 
         def _launch(_b: Gtk.Button) -> None:
@@ -1397,6 +1426,9 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _make_app_row(self, entry: AppEntry) -> Gtk.ListBoxRow:
         display_name = self.config.label_for(entry.app_id, entry.name)
+        paused = self.focus_state.is_paused_app(entry.app_id)
+        if paused:
+            display_name += ' · paused'
         title = Gtk.Label(label=display_name, xalign=0)
         title.add_css_class('app-name')
 
@@ -1412,6 +1444,8 @@ class ShellWindow(Adw.ApplicationWindow):
         launch_btn = Gtk.Button()
         launch_btn.add_css_class('flat')
         launch_btn.add_css_class('app-entry')
+        if paused:
+            launch_btn.add_css_class('paused')
         launch_btn.set_child(content)
         launch_btn.connect('clicked', lambda _b, e=entry: self._launch_entry(e))
         self._add_long_press(
@@ -1425,6 +1459,9 @@ class ShellWindow(Adw.ApplicationWindow):
         if self._pick_slot_mode:
             self._pick_slot_mode = False
             self._add_app_slot(entry)
+            return
+        if self.focus_state.is_paused_app(entry.app_id):
+            self._show_focus_notice(self.config.label_for(entry.app_id, entry.name))
             return
         ok, error = self.app_index.launch(entry)
         if ok:

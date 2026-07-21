@@ -136,3 +136,7 @@ entry {
   padding: 6px;
   border-radius: 0;
 }
+
+.paused {
+  opacity: 0.45;
+}

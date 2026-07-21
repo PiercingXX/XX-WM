@@ -26,10 +26,12 @@ class AppItemActions:
 
     def __init__(self, config: ShellConfig,
                  on_changed: Callable[[], None],
-                 on_status: Callable[[str], None]) -> None:
+                 on_status: Callable[[str], None],
+                 focus_state: object | None = None) -> None:
         self._config = config
         self._on_changed = on_changed
         self._on_status = on_status
+        self._focus = focus_state
 
     # -- popover plumbing --------------------------------------------------
 
@@ -112,6 +114,13 @@ class AppItemActions:
         else:
             actions.append(('Hide', lambda: self._set_hidden(entry, True)))
         actions.append(('Disable for…', lambda: self._show_disable_for(anchor, entry.app_id, entry.name)))
+        if self._focus is not None:
+            if self._focus.is_focus_app(entry.app_id):
+                actions.append(('Focus: unpause this app',
+                                lambda: self._set_focus_app(entry, False)))
+            else:
+                actions.append(('Focus: pause this app',
+                                lambda: self._set_focus_app(entry, True)))
         if entry.app_id in config.pinned:
             actions.append(('Unpin', lambda: self._set_pinned(entry, False)))
             actions.append(('Move up', lambda: self._move_pinned(entry, -1)))
@@ -227,6 +236,13 @@ class AppItemActions:
         pinned[idx], pinned[new_idx] = pinned[new_idx], pinned[idx]
         self._config.set_pinned(pinned)
         self._on_changed()
+
+    def _set_focus_app(self, entry: AppEntry, focused: bool) -> None:
+        self._focus.set_app_focused(entry.app_id, focused)
+        self._on_changed()
+        self._on_status(
+            f'{entry.name} pauses while Focus is on.' if focused
+            else f'{entry.name} removed from Focus.')
 
     def _show_disable_for(self, anchor: Gtk.Widget, app_id: str, name: str) -> None:
         def _mute(hours: int, label: str) -> None:

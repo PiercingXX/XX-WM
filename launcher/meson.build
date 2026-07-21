@@ -48,6 +48,7 @@ python.install_sources(
     'src/app_item_actions.py',
     'src/calendar_grid.py',
     'src/dnd.py',
+    'src/focus_mode.py',
     'src/sound.py',
     'src/weather.py',
   ],

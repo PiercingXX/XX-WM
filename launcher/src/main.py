@@ -27,6 +27,9 @@ class PiercingShellApplication(Adw.Application):
         self._shell: ShellWindow | None = None
         self._ipc: IPCServer | None = None
         self._notif_daemon: NotificationDaemon | None = None
+        from focus_mode import HeldNotifications
+        self._held_notifications = HeldNotifications()
+        GLib.timeout_add_seconds(30, self._tick_focus_release)
 
     def do_activate(self) -> None:
         if self.props.active_window is not None:
@@ -91,6 +94,14 @@ class PiercingShellApplication(Adw.Application):
         urgency = hints.get('urgency', 1)
         is_alarm = category.startswith('alarm') or urgency == 2
 
+        # Focus: notifications from paused apps are held outright — no sound,
+        # not in the shade — and released in one batch when focus ends
+        focus = getattr(self._shell, 'focus_state', None)
+        if focus is not None and focus.is_paused_app(desktop_entry) and not is_alarm:
+            self._held_notifications.hold(notif_id, app_name, summary, body, desktop_entry)
+            _log.debug('notification %d held by Focus: %s', notif_id, desktop_entry)
+            return
+
         # DnD: notifications still collect in the shade, but silently —
         # no sound. Alarms are always exempt.
         dnd = getattr(self._shell, 'dnd_state', None)
@@ -105,6 +116,16 @@ class PiercingShellApplication(Adw.Application):
         # the user first opens it
         self._shell._ensure_shade().add_notification(
             notif_id, app_name, summary, body, desktop_entry)
+
+    def _tick_focus_release(self) -> bool:
+        focus = getattr(self._shell, 'focus_state', None) if self._shell else None
+        if focus is None or len(self._held_notifications) == 0:
+            return True
+        if focus.is_active():
+            return True
+        for held in self._held_notifications.release_all():
+            self._shell._ensure_shade().add_notification(*held)
+        return True
 
     def _on_notification_closed(self, notif_id: int) -> None:
         if self._shell is None:

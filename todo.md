@@ -141,12 +141,12 @@ Spec: `design.md` "Do Not Disturb". The `dnd` tile in `quick_actions.py` is curr
 
 Spec: `design.md` "Focus Mode". Nothing exists yet. Build the Pixel behavior first; polish comes later.
 
-- [ ] **14.1 State module** — `launcher/src/focus_mode.py`: config `focus_apps` (list of app_ids), `focus_enabled`, `focus_schedules` (reuse the 13.1 schedule matcher — extract it into a shared helper), break state (`until` timestamp). API: `is_active()`, `is_paused_app(app_id)`, `start_break(minutes)`.
-- [ ] **14.2 App pausing** — while active: paused apps render dimmed with a `· paused` suffix on home slots, folders, and drawer rows; tapping shows a one-line notice instead of launching (with `Take a break` / `Turn off Focus` actions). Gate in the single `launch_slot`/drawer dispatch path (Workstream 1.6) so every launch route is covered.
-- [ ] **14.3 Notification holding** — `notif_daemon.py`: notifications from paused apps (match `desktop_entry`) are held in a hidden queue — no banner, no sound, not in the shade; on focus end (or break start), release them into the shade in one batch.
-- [ ] **14.4 Take a break** — 5/10/15-minute break: focus suspends (apps launchable, notifications flow), auto-resumes at `until`. Surface: the paused-app notice + the Focus tile long-press.
-- [ ] **14.5 Tile + selection** — Focus tile in `quick_actions.py` (tier 2). App selection lives in config (`focus_apps`) per the config-first rule; the drawer long-press menu (2.3) gains `Focus: pause this app` toggle as the on-device editor.
-- [ ] **14.6 Tests** — break expiry/resume, hold-and-release queue ordering, paused-app matching, schedule reuse.
+- [x] **14.1 State module** — `launcher/src/focus_mode.py`: config `focus_apps` (list of app_ids), `focus_enabled`, `focus_schedules` (reuse the 13.1 schedule matcher — extract it into a shared helper), break state (`until` timestamp). API: `is_active()`, `is_paused_app(app_id)`, `start_break(minutes)`.
+- [x] **14.2 App pausing** — while active: paused apps render dimmed with a `· paused` suffix on home slots, folders, and drawer rows; tapping shows a one-line notice instead of launching (with `Take a break` / `Turn off Focus` actions). Gate in the single `launch_slot`/drawer dispatch path (Workstream 1.6) so every launch route is covered.
+- [x] **14.3 Notification holding** — `notif_daemon.py`: notifications from paused apps (match `desktop_entry`) are held in a hidden queue — no banner, no sound, not in the shade; on focus end (or break start), release them into the shade in one batch.
+- [x] **14.4 Take a break** — 5/10/15-minute break: focus suspends (apps launchable, notifications flow), auto-resumes at `until`. Surface: the paused-app notice + the Focus tile long-press.
+- [x] **14.5 Tile + selection** — Focus tile in `quick_actions.py` (tier 2). App selection lives in config (`focus_apps`) per the config-first rule; the drawer long-press menu (2.3) gains `Focus: pause this app` toggle as the on-device editor.
+- [x] **14.6 Tests** — break expiry/resume, hold-and-release queue ordering, paused-app matching, schedule reuse.
 
 ## Workstream 15 — Settings = system-only; config file is the API
 
