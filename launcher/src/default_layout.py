@@ -33,10 +33,16 @@ STOCK_HIDDEN_APPS = [
     'mobi.phosh.MobileSettings',
 ]
 
-_NOTES_CANDIDATES = ['org.gnome.Notes', 'net.cozic.joplin_desktop', 'md.obsidian.Obsidian']
-_AUDIOBOOK_CANDIDATES = ['com.audiobookshelf.app', 'waydroid.com.audiobookshelf.app']
+_NOTES_CANDIDATES = ['org.gnome.Notes', 'net.cozic.joplin_desktop', 'md.obsidian.Obsidian',
+                     'org.gnome.TextEditor']
+# Android-container apps: FuriOS prefixes desktop ids with 'android.',
+# Waydroid with 'waydroid.' — carry both variants for every package
+_AUDIOBOOK_CANDIDATES = ['com.audiobookshelf.app', 'android.com.audiobookshelf.app',
+                         'waydroid.com.audiobookshelf.app']
 _MUSIC_CANDIDATES = [
+    'android.com.google.android.apps.youtube.music',
     'waydroid.com.google.android.apps.youtube.music',
+    'com.github.neithern.g4music',
     'org.gnome.Rhythmbox3',
     'org.gnome.Lollypop',
 ]
@@ -46,17 +52,24 @@ _MUSIC_CANDIDATES = [
 _PHONE_CANDIDATES = ['org.gnome.Calls', 'sm.puri.Calls']
 _TEXT_CANDIDATES = ['sm.puri.Chatty', 'org.gnome.Chats']
 _EMAIL_CANDIDATES = ['org.gnome.Geary', 'org.gnome.Evolution']
-_CHAT_CANDIDATES = ['waydroid.com.synology.dschat', 'com.synology.dschat', 'com.synology.chat']
+_CHAT_CANDIDATES = ['android.com.synology.dschat', 'waydroid.com.synology.dschat',
+                    'com.synology.dschat', 'com.synology.chat']
 _SOFTPHONE_CANDIDATES = [
+    'android.cz.acrobits.softphone.cloudphone',
     'waydroid.cz.acrobits.softphone.cloudphone',
     'cz.acrobits.softphone.cloudphone',
 ]
-_CALENDAR_CANDIDATES = ['org.gnome.Calendar', 'gnome-calendar', 'waydroid.com.google.android.calendar']
+_CALENDAR_CANDIDATES = ['org.gnome.Calendar', 'gnome-calendar',
+                        'android.com.google.android.calendar',
+                        'waydroid.com.google.android.calendar']
 _CALCULATOR_CANDIDATES = ['org.gnome.Calculator', 'gnome-calculator']
-_CAMERA_CANDIDATES = ['org.postmarketos.Megapixels', 'org.gnome.Snapshot', 'megapixels']
+_CAMERA_CANDIDATES = ['furios-camera', 'org.postmarketos.Megapixels',
+                      'org.gnome.Snapshot', 'megapixels']
 _PHOTOS_CANDIDATES = [
+    'android.com.synology.projectkailash',
     'waydroid.com.synology.projectkailash',
     'com.synology.projectkailash',
+    'io.furios.Gallery',
     'org.gnome.Loupe',
 ]
 
