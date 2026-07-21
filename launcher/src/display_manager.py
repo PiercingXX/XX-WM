@@ -215,7 +215,6 @@ class DisplayManager:
                 )
             elif value == 0:  # key up
                 self._power_held = False
-                elapsed_ms = (time.monotonic() - (self._power_down_at or 0)) * 1000
                 was_long = self._cancel_long_press()
                 if not was_long and not self._voldown_held:
                     # Short press: blank/wake

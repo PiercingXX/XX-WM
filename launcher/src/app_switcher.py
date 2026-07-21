@@ -23,7 +23,6 @@ _SWITCHER_CSS = b"""
 .switcher-root {
     background: rgba(0, 0, 0, 0.92);
     color: #f4f4f4;
-    font-family: 'Space Mono', monospace;
 }
 .switcher-header {
     font-size: 11pt;

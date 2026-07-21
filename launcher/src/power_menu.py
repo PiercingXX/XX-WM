@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import subprocess
-from typing import Callable
 
 import gi
 
@@ -22,7 +21,6 @@ _CSS = b"""
     background: rgba(0, 0, 0, 0.72);
 }
 .power-menu-btn {
-    font-family: 'Space Mono', monospace;
     font-size: 18pt;
     font-weight: 300;
     min-height: 80px;

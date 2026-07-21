@@ -13,7 +13,7 @@ except ValueError:
 
 gi.require_version('Gtk', '4.0')
 
-from gi.repository import Gdk, GLib, Gio, Gtk
+from gi.repository import Gdk, GLib, Gtk
 
 if _LAYER_SHELL:
     from gi.repository import Gtk4LayerShell as LayerShell
@@ -22,7 +22,6 @@ _CALL_CSS = b"""
 .call-root {
     background: #000000;
     color: #f4f4f4;
-    font-family: 'Space Mono', monospace;
 }
 .call-caller {
     font-size: 28pt;
@@ -46,7 +45,6 @@ _CALL_CSS = b"""
 }
 .call-btn {
     font-size: 12pt;
-    font-family: 'Space Mono', monospace;
     min-width: 100px;
     min-height: 72px;
     border-radius: 20px;
@@ -84,7 +82,6 @@ _CALL_CSS = b"""
 }
 .call-bar-label {
     font-size: 11pt;
-    font-family: 'Space Mono', monospace;
     color: #f4f4f4;
 }
 """

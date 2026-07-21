@@ -355,6 +355,7 @@ class ShellWindow(Adw.ApplicationWindow):
             on_slot_rename=self._rename_slot,
             on_edit_action=self._on_edit_action,
             is_paused_fn=self.focus_state.is_paused_app,
+            get_alignment_fn=lambda: self.config.home_alignment,
         )
 
         launcher_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1087,6 +1088,8 @@ class ShellWindow(Adw.ApplicationWindow):
         return row
 
     def _apply_theme(self) -> None:
+        from font_theme import apply_global_font
+        apply_global_font(self.config.font_family)
         theme = self.config.theme
         style_manager = Adw.StyleManager.get_default()
         if self.config.prefer_dark:

@@ -37,6 +37,11 @@ class PiercingShellApplication(Adw.Application):
             self.props.active_window.present()
             return
 
+        # The configured font applies launcher-wide, wizard included
+        from config import ShellConfig
+        from font_theme import apply_global_font
+        apply_global_font(ShellConfig().font_family)
+
         self._ipc = IPCServer(self._on_ipc_command)
         _setup_logind(self._on_sleep)
         self._notif_daemon = NotificationDaemon(

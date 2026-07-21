@@ -24,7 +24,6 @@ _WIZARD_CSS = b"""
 .wizard-root {
     background: #000000;
     color: #f4f4f4;
-    font-family: 'Space Mono', monospace;
 }
 .wizard-title {
     font-size: 28pt;
@@ -49,7 +48,6 @@ _WIZARD_CSS = b"""
 .pin-key {
     font-size: 20pt;
     font-weight: 300;
-    font-family: 'Space Mono', monospace;
     min-width: 100px;
     min-height: 80px;
     border-radius: 50%;
@@ -72,7 +70,6 @@ _WIZARD_CSS = b"""
 }
 .wizard-next {
     font-size: 13pt;
-    font-family: 'Space Mono', monospace;
     min-height: 56px;
     border-radius: 16px;
     background: #f4f4f4;

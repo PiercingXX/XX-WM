@@ -10,6 +10,16 @@ python3 -m py_compile launcher/src/*.py || {
     exit 1
 }
 
+echo "=== Running ruff ==="
+if command -v ruff >/dev/null 2>&1; then
+    ruff check launcher/src tests || {
+        echo "ruff FAILED"
+        exit 1
+    }
+else
+    echo "ruff not available, skipping"
+fi
+
 echo "=== Running pytest ==="
 if command -v pytest >/dev/null 2>&1; then
     python3 -m pytest tests/ -q || {

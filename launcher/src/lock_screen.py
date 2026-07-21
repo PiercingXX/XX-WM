@@ -42,12 +42,10 @@ _CSS = b"""
 .lock-clock {
     font-size: 64pt;
     font-weight: 300;
-    font-family: 'Space Mono', monospace;
     color: #f4f4f4;
 }
 .lock-date {
     font-size: 16pt;
-    font-family: 'Space Mono', monospace;
     color: #9a9a9a;
 }
 .lock-dots {
@@ -59,19 +57,16 @@ _CSS = b"""
 }
 .lock-error {
     font-size: 12pt;
-    font-family: 'Space Mono', monospace;
     color: #ff6b6b;
 }
 .lock-lockout {
     font-size: 13pt;
-    font-family: 'Space Mono', monospace;
     color: #ff9a3c;
     min-height: 24px;
 }
 .lock-key {
     font-size: 22pt;
     font-weight: 300;
-    font-family: 'Space Mono', monospace;
     min-width: 110px;
     min-height: 88px;
     border-radius: 50%;
@@ -95,7 +90,6 @@ _CSS = b"""
 }
 .lock-unlock-btn {
     font-size: 14pt;
-    font-family: 'Space Mono', monospace;
     min-height: 60px;
     min-width: 200px;
     border-radius: 30px;
@@ -108,19 +102,16 @@ _CSS = b"""
 .lock-unlock-btn:disabled { opacity: 0.25; }
 .lock-fp-hint {
     font-size: 11pt;
-    font-family: 'Space Mono', monospace;
     color: #5a5a5a;
     margin-top: 8px;
 }
 .lock-hint {
     font-size: 11pt;
-    font-family: 'Space Mono', monospace;
     color: #5a5a5a;
     letter-spacing: 0.08em;
 }
 .lock-notif {
     font-size: 11pt;
-    font-family: 'Space Mono', monospace;
     color: #9a9a9a;
     background: transparent;
     border: none;
@@ -241,8 +232,10 @@ class LockScreen(Gtk.Window):
         top_pane = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         top_pane.set_hexpand(True)
         top_pane.set_vexpand(True)
-        sp1 = Gtk.Box(); sp1.set_vexpand(True)
-        sp2 = Gtk.Box(); sp2.set_vexpand(True)
+        sp1 = Gtk.Box()
+        sp1.set_vexpand(True)
+        sp2 = Gtk.Box()
+        sp2.set_vexpand(True)
         top_pane.append(sp1)
         top_pane.append(clock_box)
         top_pane.append(sp2)
@@ -326,8 +319,10 @@ class LockScreen(Gtk.Window):
         bot_pane = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         bot_pane.set_hexpand(True)
         bot_pane.set_vexpand(True)
-        sp3 = Gtk.Box(); sp3.set_vexpand(True)
-        sp4 = Gtk.Box(); sp4.set_vexpand(True)
+        sp3 = Gtk.Box()
+        sp3.set_vexpand(True)
+        sp4 = Gtk.Box()
+        sp4.set_vexpand(True)
         bot_pane.append(self._notif_box)
         bot_pane.append(sp3)
         bot_pane.append(self._pin_revealer)

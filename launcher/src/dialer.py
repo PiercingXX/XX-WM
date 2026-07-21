@@ -6,14 +6,13 @@ import subprocess
 
 gi.require_version('Gtk', '4.0')
 
-from gi.repository import Gdk, GLib, Gio, Gtk
+from gi.repository import Gdk, Gtk
 from contacts import Contact, ContactBook
 
 _DIALER_CSS = b"""
 .dialer-root {
     background: #000000;
     color: #f4f4f4;
-    font-family: 'Space Mono', monospace;
 }
 .dialer-display {
     font-size: 28pt;
@@ -26,7 +25,6 @@ _DIALER_CSS = b"""
 .dialer-button {
     font-size: 20pt;
     font-weight: 300;
-    font-family: 'Space Mono', monospace;
     min-width: 100px;
     min-height: 80px;
     border-radius: 50%;
@@ -43,7 +41,6 @@ _DIALER_CSS = b"""
 }
 .call-button {
     font-size: 14pt;
-    font-family: 'Space Mono', monospace;
     min-width: 100px;
     min-height: 80px;
     border-radius: 50%;
@@ -153,7 +150,6 @@ class Dialer(Gtk.Window):
         del_btn = Gtk.Button(label='←')
         del_btn.add_css_class('del-button')
         del_btn.connect('clicked', self._on_delete)
-        del_btn.connect('pressed', None)  # placeholder for long-press to clear all
 
         long_press = Gtk.GestureLongPress.new()
         long_press.connect('pressed', lambda *_: self._clear_all())

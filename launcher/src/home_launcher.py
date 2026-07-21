@@ -126,7 +126,8 @@ class HomeLauncher(Gtk.Box):
                  on_slot_remove: Callable[[int], None] | None = None,
                  on_slot_rename: Callable[[Gtk.Widget, int], None] | None = None,
                  on_edit_action: Callable[[str, Gtk.Widget], None] | None = None,
-                 is_paused_fn: Callable[[str], bool] | None = None) -> None:
+                 is_paused_fn: Callable[[str], bool] | None = None,
+                 get_alignment_fn: Callable[[], str] | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_vexpand(True)
         self._open_dialer = open_dialer_fn
@@ -138,6 +139,7 @@ class HomeLauncher(Gtk.Box):
         self._on_slot_rename = on_slot_rename or (lambda widget, idx: None)
         self._on_edit_action = on_edit_action or (lambda action, widget: None)
         self._is_paused = is_paused_fn or (lambda app_id: False)
+        self._get_alignment = get_alignment_fn or (lambda: 'center')
         self._open_folder_index: int | None = None
         self.edit_mode = False
         self._build()
@@ -272,10 +274,15 @@ class HomeLauncher(Gtk.Box):
         revealer.set_reveal_child(True)
         return GLib.SOURCE_REMOVE
 
+    def _row_halign(self) -> Gtk.Align:
+        return {'left': Gtk.Align.START, 'right': Gtk.Align.END}.get(
+            self._get_alignment(), Gtk.Align.CENTER)
+
     def _make_row(self, label: str, on_tap: Callable[[], None],
                   paused: bool = False) -> Gtk.Button:
         lbl = Gtk.Label(label=label + (' · paused' if paused else ''))
-        lbl.set_halign(Gtk.Align.CENTER)
+        lbl.set_halign(self._row_halign())
+        lbl.set_hexpand(True)
         lbl.add_css_class('home-item-label')
 
         btn = Gtk.Button()
@@ -289,7 +296,8 @@ class HomeLauncher(Gtk.Box):
 
     def _make_folder_row(self, slot: dict, idx: int) -> Gtk.Button:
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        row.set_halign(Gtk.Align.CENTER)
+        row.set_halign(self._row_halign())
+        row.set_hexpand(True)
 
         lbl = Gtk.Label(label=slot.get('label', ''))
         lbl.add_css_class('home-item-label')

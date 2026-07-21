@@ -49,6 +49,7 @@ python.install_sources(
     'src/calendar_grid.py',
     'src/dnd.py',
     'src/focus_mode.py',
+    'src/font_theme.py',
     'src/sound.py',
     'src/system_settings.py',
     'src/weather.py',

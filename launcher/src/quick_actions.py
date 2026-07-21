@@ -17,7 +17,6 @@ _QA_CSS = b"""
     background: transparent;
 }
 .qa-tile {
-    font-family: 'Space Mono', monospace;
     min-width: 80px;
     min-height: 72px;
     border-radius: 16px;
@@ -48,7 +47,6 @@ _QA_CSS = b"""
 }
 .qa-slider-label {
     font-size: 10pt;
-    font-family: 'Space Mono', monospace;
     color: #9a9a9a;
     min-width: 60px;
 }

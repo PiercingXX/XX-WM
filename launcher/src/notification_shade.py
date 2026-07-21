@@ -14,7 +14,7 @@ except ValueError:
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk
+from gi.repository import Gdk, Gio, GLib, Gtk
 
 if _LAYER_SHELL:
     from gi.repository import Gtk4LayerShell as LayerShell
@@ -28,7 +28,6 @@ _SHADE_CSS = b"""
 .shade-root {
     background: rgba(0, 0, 0, 0.88);
     color: #f4f4f4;
-    font-family: 'Space Mono', monospace;
 }
 .shade-header {
     font-size: 11pt;
