@@ -138,7 +138,8 @@ configure_file(
 )
 
 # Session launcher (phoc wrapper) → $prefix/libexec/piercing-session
-# Wayland session .desktop → $prefix/share/wayland-sessions/piercingos.session
+# Wayland session entry → $prefix/share/wayland-sessions/piercingxx.desktop
+# Display managers only scan *.desktop here — a .session suffix is ignored.
 session_conf = configuration_data()
 session_conf.set('bindir', bindir)
 session_conf.set('libexecdir', libexecdir)
@@ -154,8 +155,8 @@ configure_file(
 )
 
 configure_file(
-  input: 'data/piercingos.session.in',
-  output: 'piercingos.session',
+  input: 'data/piercingxx.desktop.in',
+  output: 'piercingxx.desktop',
   configuration: session_conf,
   install: true,
   install_dir: join_paths(get_option('datadir'), 'wayland-sessions'),

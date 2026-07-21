@@ -80,7 +80,7 @@ ps -p 1                            # systemd or OpenRC?
 
 ## Session config
 
-- Wayland session: `wayland-sessions/piercingos.session`
+- Wayland session: `wayland-sessions/piercingxx.desktop` (display managers only scan `*.desktop`)
 - Session launcher: `libexec/piercing-session` (phoc wrapper, sets GTK_THEME from config); the in-session `bin/piercing-shell` starts squeekboard before the shell
 - systemd user service: `share/systemd/user/piercing-shell.service` (`Restart=on-failure`); OpenRC: `data/openrc/piercing-shell` → `/etc/init.d/` (postmarketOS default images)
 - Keyboard layouts: `data/squeekboard/` (PiercingXX Colemak, incl. terminal/email/url variants) → `datadir/piercing-shell/squeekboard`, symlinked by install.sh to `~/.local/share/squeekboard/keyboards/`
