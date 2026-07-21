@@ -47,10 +47,8 @@ THEME_PRESETS = {
     'paper': ThemePreset('paper', 'Paper', '#F3EEE2', '#e0d8cb', '#ccc4b4', '#b09c85', '#151515', '#585147', '#262626'),
     'mist': ThemePreset('mist', 'Mist', '#E6EDF5', '#d0d8e2', '#bac4cf', '#9aa8ba', '#151a1f', '#55606c', '#2f3943'),
     'aura': ThemePreset('aura', 'Aura', '#0d0b14', '#14112a', '#1e1a3a', '#3d3066', '#f0eeff', '#9080c0', '#a855f7'),
+    'burgundy': ThemePreset('burgundy', 'Burgundy', '#2A1018', '#3b1a24', '#4c2330', '#6e3a4c', '#f6edef', '#ab949c', '#d9b3bf'),
 }
-
-# Burgundy - extra named custom-color suggestion (not a preset)
-BURGUNDY_COLOR = '#2A1018'
 
 FONT_FAMILIES = {
     'system-light': 'Sans Light',
