@@ -22,7 +22,7 @@ GTK4/libadwaita launcher + shell surfaces for Linux phones. Despite the "WM" nam
 
 - Spec gaps — 8-slot home model, widgets config, `!` web search, rename labels, theme presets, JSON backup (`../todo.md` Phase 1)
 - Device bring-up: evdev paths, IIO sensor path, wlopm output name (Phase 3)
-- lisgd gesture service wiring, wob HUD, wvkbd keyboard (Phases 2–3)
+- lisgd gesture service wiring, wob HUD, squeekboard keyboard (PiercingXX Colemak layouts) (Phases 2–3)
 - Telephony verification on device (Phase 3; VoLTE testing on the FLX1 in Phase 4)
 - App switcher live window list — blocked on `wlr-foreign-toplevel-management-unstable-v1` in phoc
 - Performance baseline — needs device testing (Librem 5 is the canary)

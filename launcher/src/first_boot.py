@@ -430,6 +430,16 @@ class FirstBootWizard(Gtk.Window):
             subprocess.run(['timedatectl', 'set-timezone', tz], check=True, timeout=5)
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             pass
+        # Colemak is the shipped keyboard layout; squeekboard follows
+        # org.gnome.desktop.input-sources (silent no-op without gsettings)
+        try:
+            subprocess.run(
+                ['gsettings', 'set', 'org.gnome.desktop.input-sources',
+                 'sources', "[('xkb', 'us+colemak')]"],
+                timeout=5, capture_output=True,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
         self._config.save()
         # Create shell window BEFORE closing wizard so GTK doesn't auto-quit
         self._on_complete()

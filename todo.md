@@ -161,10 +161,10 @@ Spec: `design.md` "Settings scope". Supersedes the "Settings:" GUI sub-items in 
 
 Decision made: squeekboard, not wvkbd (design.md/README updated). Layout source: https://github.com/PiercingXX/furi-phone-colemak-keyboard (base + wide variants, plus `terminal/`, `email/`, `url/` purpose variants — squeekboard picks those by input-purpose hint, which covers "separate terminal keyboards" natively).
 
-- [ ] **16.1 Vendor layouts** — copy the `squeekboard/` yaml tree from that repo into `launcher/data/squeekboard/` (keep subdir structure); meson-install to the user path squeekboard reads (`~/.local/share/squeekboard/keyboards/` at install time via install.sh, or datadir + install.sh symlink — pick one, document it).
-- [ ] **16.2 Session integration** — session files/`phoc.ini`: launch squeekboard instead of wvkbd; ensure the layer-shell keyboard layer ordering still puts the shade/lock above it. Add squeekboard to install.sh deps (apk `squeekboard` / apt `squeekboard`); note the user's temporary fork (github.com/PiercingXX/squeekboard) as fallback if distro packages lack needed fixes.
-- [ ] **16.3 Default layout** — set Colemak as the active layout on first boot (gsettings `org.gnome.desktop.input-sources` sources squeekboard honors); first-boot wizard step optional-skip.
-- [ ] **16.4 Sweep refs** — grep repo for `wvkbd`, update remaining mentions (docs, comments, deps lists).
+- [x] **16.1 Vendor layouts** — copy the `squeekboard/` yaml tree from that repo into `launcher/data/squeekboard/` (keep subdir structure); meson-install to the user path squeekboard reads (`~/.local/share/squeekboard/keyboards/` at install time via install.sh, or datadir + install.sh symlink — pick one, document it).
+- [x] **16.2 Session integration** — session files/`phoc.ini`: launch squeekboard instead of wvkbd; ensure the layer-shell keyboard layer ordering still puts the shade/lock above it. Add squeekboard to install.sh deps (apk `squeekboard` / apt `squeekboard`); note the user's temporary fork (github.com/PiercingXX/squeekboard) as fallback if distro packages lack needed fixes.
+- [x] **16.3 Default layout** — set Colemak as the active layout on first boot (gsettings `org.gnome.desktop.input-sources` sources squeekboard honors); first-boot wizard step optional-skip.
+- [x] **16.4 Sweep refs** — grep repo for `wvkbd`, update remaining mentions (docs, comments, deps lists).
 - Device-gated: on-screen typing verification, purpose-variant switching in real apps.
 
 ## Workstream 17 — Default app set (the phone ships useful)

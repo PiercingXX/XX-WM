@@ -74,6 +74,31 @@ install_data(
   install_dir: join_paths(shell_datadir, 'sounds'),
 )
 
+# PiercingXX Colemak layouts for squeekboard (vendored from
+# furi-phone-colemak-keyboard). install.sh symlinks this tree to
+# ~/.local/share/squeekboard/keyboards/ — squeekboard only reads the user
+# path. Subdirs are input-purpose variants squeekboard picks natively.
+install_data(
+  'data/squeekboard/us+colemak.yaml',
+  'data/squeekboard/us+colemak_wide.yaml',
+  install_dir: join_paths(shell_datadir, 'squeekboard'),
+)
+install_data(
+  'data/squeekboard/terminal/us+colemak.yaml',
+  'data/squeekboard/terminal/us+colemak_wide.yaml',
+  install_dir: join_paths(shell_datadir, 'squeekboard', 'terminal'),
+)
+install_data(
+  'data/squeekboard/email/us+colemak.yaml',
+  'data/squeekboard/email/us+colemak_wide.yaml',
+  install_dir: join_paths(shell_datadir, 'squeekboard', 'email'),
+)
+install_data(
+  'data/squeekboard/url/us+colemak.yaml',
+  'data/squeekboard/url/us+colemak_wide.yaml',
+  install_dir: join_paths(shell_datadir, 'squeekboard', 'url'),
+)
+
 # Shell Python launcher (runs main.py) → $prefix/bin/piercing-shell
 launcher_conf = configuration_data()
 launcher_conf.set('python', python.full_path())
