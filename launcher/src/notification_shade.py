@@ -513,3 +513,7 @@ class NotificationShade(Gtk.Window):
     def clear_all(self) -> None:
         self._notifications.clear()
         self._rebuild_list()
+
+    def notifications_snapshot(self) -> list[tuple[str, str]]:
+        """(app_name, summary) pairs for the lock screen's text list."""
+        return [(n.app_name, n.summary) for n in self._notifications]

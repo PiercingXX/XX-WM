@@ -76,6 +76,7 @@ DEFAULT_CONFIG = {
     'default_layout_applied': False,
     'app_labels': {},
     'muted_apps': {},
+    'lock_screen_notifications': 'summary',
     'dnd_enabled': False,
     'dnd_schedules': [],
     'dnd_starred_numbers': [],
@@ -343,6 +344,11 @@ class ShellConfig:
             until > now and self._norm_app_id(key).casefold() == wanted
             for key, until in self.muted_apps.items()
         )
+
+    @property
+    def lock_screen_notifications(self) -> str:
+        val = str(self.data.get('lock_screen_notifications', 'summary'))
+        return val if val in ('summary', 'count', 'off') else 'summary'
 
     @property
     def sound_ringtone(self) -> bool:

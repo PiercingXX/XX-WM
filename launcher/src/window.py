@@ -453,11 +453,19 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _show_lock_screen(self) -> None:
         lock = getattr(self, '_lock_screen', None)
-        if lock is not None and lock.get_visible():
+        if lock is not None:
+            if not lock.get_visible():
+                lock.prepare()
             lock.present()
+            lock.set_visible(True)
             return
         from lock_screen import LockScreen
-        self._lock_screen = LockScreen(on_unlock=self._dismiss_lock_screen)
+        self._lock_screen = LockScreen(
+            on_unlock=self._dismiss_lock_screen,
+            get_notifications=lambda: self._ensure_shade().notifications_snapshot(),
+            dnd_active_fn=lambda: self.dnd_state.is_active(),
+            on_open_shade=self._show_shade,
+        )
         self._lock_screen.set_application(self.get_application())
         self._lock_screen.present()
 

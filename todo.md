@@ -113,9 +113,9 @@ Installer pattern: whiptail menu, cached sudo, network check up front.
 
 The lock screen stays ours — `lock_screen.py`, not phrog. Spec: `design.md` "Lock screen".
 
-- [ ] **11.1 Swipe to unlock** — add a `GestureDrag`/swipe recognizer to the lock surface. No PIN configured → upward swipe past threshold unlocks. PIN configured → keypad starts hidden; the swipe reveals it (slide-up reveal, same Revealer pattern as the shade). Keep lockout/fingerprint behavior intact.
-- [ ] **11.2 Lock-screen notifications** — feed from `notif_daemon.py`: text rows of app name + summary only (no bodies, no actions). Config `lock_screen_notifications`: `'summary'` (default) / `'count'` / `'off'`. Hidden while DnD is active (query the Workstream 13 state). Tap → reveal keypad/swipe hint; after unlock, open the shade. Rows clear from the lock surface on unlock but stay in the shade.
-- [ ] **11.3 Tests** — pure-logic coverage for the notification filtering (config modes, DnD suppression) with a fake daemon feed.
+- [x] **11.1 Swipe to unlock** — add a `GestureDrag`/swipe recognizer to the lock surface. No PIN configured → upward swipe past threshold unlocks. PIN configured → keypad starts hidden; the swipe reveals it (slide-up reveal, same Revealer pattern as the shade). Keep lockout/fingerprint behavior intact.
+- [x] **11.2 Lock-screen notifications** — feed from `notif_daemon.py`: text rows of app name + summary only (no bodies, no actions). Config `lock_screen_notifications`: `'summary'` (default) / `'count'` / `'off'`. Hidden while DnD is active (query the Workstream 13 state). Tap → reveal keypad/swipe hint; after unlock, open the shade. Rows clear from the lock surface on unlock but stay in the shade.
+- [x] **11.3 Tests** — pure-logic coverage for the notification filtering (config modes, DnD suppression) with a fake daemon feed.
 
 ## Workstream 12 — Shade v2 (header: date/time, calendar, settings)
 
