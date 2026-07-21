@@ -30,7 +30,8 @@ class TestActionValidation:
 class TestGestureConfig:
     @pytest.fixture(autouse=True)
     def _isolate_config(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(gesture_config, '_CONFIG_PATH', tmp_path / 'gestures.json')
+        monkeypatch.setattr(gesture_config, '_config_path',
+                            lambda: tmp_path / 'gestures.json')
 
     def test_home_swipe_defaults(self):
         gc = GestureConfig()

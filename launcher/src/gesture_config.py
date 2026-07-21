@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-_CONFIG_PATH = Path.home() / '.config' / 'piercing-shell' / 'gestures.json'
+def _config_path() -> Path:
+    # Resolved per-instance so a redirected HOME (tests) is honored
+    return Path.home() / '.config' / 'piercing-shell' / 'gestures.json'
 
 # Gesture slot → default action
 _DEFAULTS: dict[str, str] = {
@@ -67,14 +69,15 @@ GESTURE_LABELS: dict[str, str] = {
 
 class GestureConfig:
     def __init__(self) -> None:
+        self._path = _config_path()
         self._map: dict[str, str] = dict(_DEFAULTS)
         self._load()
 
     def _load(self) -> None:
-        if not _CONFIG_PATH.exists():
+        if not self._path.exists():
             return
         try:
-            raw = json.loads(_CONFIG_PATH.read_text(encoding='utf-8'))
+            raw = json.loads(self._path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError):
             return
         if not isinstance(raw, dict):
@@ -84,8 +87,8 @@ class GestureConfig:
                 self._map[key] = action
 
     def save(self) -> None:
-        _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _CONFIG_PATH.write_text(json.dumps(self._map, indent=2) + '\n', encoding='utf-8')
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.write_text(json.dumps(self._map, indent=2) + '\n', encoding='utf-8')
 
     def get(self, gesture: str) -> str:
         return self._map.get(gesture, 'none')

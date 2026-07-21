@@ -73,7 +73,7 @@ Match the backup scope in `design.md` "Backup / restore":
 
 - [x] **6.1 Export** — `launcher/src/backup.py`: `export_backup() -> dict` with `{version: 1, home_slots, app_labels, hidden_apps, widgets, theme (+custom color), font, text_size_scale, home_alignment, auto_lock_timeout, gestures (from gesture_config), search/visibility prefs}`. Explicitly excluded: PIN hash (security), launch counts (noise), custom font file. Settings button "Export backup" → write `~/piercing-wm-backup-YYYYMMDD.json`.
 - [x] **6.2 Restore, atomic** — `restore_backup(path)`: parse → validate the **entire** payload against the schema (types, slot cap, known theme/font/gesture keys) → only then apply, via one `ShellConfig` write + one gestures write. Invalid payload = zero writes + visible error label (the no-write-on-invalid-payload guarantee). Settings button "Restore from backup" with a confirm step.
-- [ ] **6.3 Tests** — round-trip test (export → restore onto fresh config → configs equal), and a table of malformed payloads (truncated JSON, wrong types, 9 slots, unknown gesture action) asserting nothing was written.
+- [x] **6.3 Tests** — round-trip test (export → restore onto fresh config → configs equal), and a table of malformed payloads (truncated JSON, wrong types, 9 slots, unknown gesture action) asserting nothing was written.
 
 ## Workstream 7 — Sounds
 
