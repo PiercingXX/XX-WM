@@ -56,7 +56,7 @@ Current drawer (`window.py` + `app_index.py`): bottom search (no auto-keyboard),
 `FONT_FAMILIES` (`config.py`) has system-light/space-mono/jetbrains-mono/jetbrains-mono-nerd; **default is jetbrains-mono-nerd** per the parity sync. The spec adds:
 
 - [x] **4.1 JetBrains Mono Nerd** — add `'jetbrains-mono-nerd': 'JetBrainsMono Nerd Font, JetBrains Mono, Monospace'`. Render gracefully when not installed (the fallback chain handles it).
-- [ ] **4.2 Custom font import** — Settings: file path entry (a phone file-picker is overkill; text entry + validation is fine) for a `.ttf`/`.otf`; copy into `~/.local/share/fonts/`, run `fc-cache -f` (subprocess, silent on failure), store `font: 'custom'`, `custom_font_family` read via Pango after install. Note: custom font files are not part of backup (4.3 → Workstream 6).
+- [x] **4.2 Custom font import** — config-first per WS15 (GUI row superseded): `config.install_custom_font(path)` copies a `.ttf`/`.otf` into `~/.local/share/fonts/`, runs `fc-cache -f` (silent on failure), reads the family via `fc-scan` (falls back to the file stem), stores `font: 'custom'` + `custom_font_family`. Custom font files are not part of backup.
 
 ## Workstream 5 — Widgets row (time / date / battery / weather)
 
@@ -89,9 +89,9 @@ Assets already in `launcher/data/sounds/` (ringtone.mp3, notify.wav, comm-on.wav
 
 `gesture_config.py` already has the right shape. Gaps:
 
-- [ ] **8.1 Arbitrary app targets** — swipe-left/right should launch *any chosen app* (`design.md` "Gestures"). `launch:<app_id>` validation/persistence in `gesture_config.py` is **done** (the default-layout seeder already binds Skippy this way); remaining: dispatch (`launch:` → `Gio.DesktopAppInfo.launch()`, fall back to `none` if uninstalled) and the Settings editor "Launch app…" → app picker.
-- [ ] **8.2 Swipe-down choice** — verify the Settings editor exposes `swipe_down_top` = notifications vs search (both already valid actions) and that the `search` action opens the drawer with keyboard focus. Fix if not.
-- [ ] **8.3 Prune dead slots** — `squeeze` and `double_press_power`/`fingerprint_swipe` are hardware-gated; keep them in `_DEFAULTS` but hide from the Settings editor behind a "hardware gestures" expander with a note that they need device support.
+- [x] **8.1 Arbitrary app targets** — swipe-left/right should launch *any chosen app* (`design.md` "Gestures"). `launch:<app_id>` validation/persistence in `gesture_config.py` is **done** (the default-layout seeder already binds Skippy this way); remaining: dispatch (`launch:` → `Gio.DesktopAppInfo.launch()`, fall back to `none` if uninstalled) and the Settings editor "Launch app…" → app picker.
+- [x] **8.2 Swipe-down choice** — verify the Settings editor exposes `swipe_down_top` = notifications vs search (both already valid actions) and that the `search` action opens the drawer with keyboard focus. Fix if not.
+- [x] **8.3 Prune dead slots** — moot as a GUI task: the gesture editor GUI is gone (config-file-first per WS15). `squeeze`/`double_press_power`/`fingerprint_swipe` stay in `_DEFAULTS`; their device-support requirement is documented in `docs/config.md` (15.2).
 
 ## Workstream 9 — Scripts (installer / deploy / init)
 

@@ -124,6 +124,10 @@ class ShellConfig:
     @property
     def font_family(self) -> str:
         key = str(self.data.get('font', DEFAULT_CONFIG['font']))
+        if key == 'custom':
+            family = self.data.get('custom_font_family')
+            if family:
+                return str(family)
         return FONT_FAMILIES.get(key, FONT_FAMILIES[DEFAULT_CONFIG['font']])
 
     @property
@@ -143,7 +147,7 @@ class ShellConfig:
             self.save()
 
     def set_font(self, key: str) -> None:
-        if key in FONT_FAMILIES:
+        if key in FONT_FAMILIES or (key == 'custom' and self.data.get('custom_font_family')):
             self.data['font'] = key
             self.save()
 
@@ -367,6 +371,11 @@ class ShellConfig:
         self.save()
 
     @property
+    def custom_font_family(self) -> str | None:
+        val = self.data.get('custom_font_family')
+        return str(val) if val else None
+
+    @property
     def custom_background(self) -> str | None:
         val = self.data.get('custom_background')
         return str(val) if val else None
@@ -380,4 +389,48 @@ class ShellConfig:
         self.data['custom_background'] = color
         self.save()
         return True
+
+
+def install_custom_font(config: 'ShellConfig', path: str,
+                        run: object = None) -> tuple[bool, str]:
+    """Install a user .ttf/.otf into ~/.local/share/fonts and switch the shell
+    to it (`font: 'custom'`, `custom_font_family`). Custom font files are
+    deliberately excluded from backups. Returns (ok, message)."""
+    import shutil
+    import subprocess
+    runner = run or subprocess.run
+
+    src = Path(path).expanduser()
+    if src.suffix.lower() not in ('.ttf', '.otf'):
+        return False, 'Font must be a .ttf or .otf file.'
+    if not src.is_file():
+        return False, f'No such file: {src}'
+
+    dest_dir = Path.home() / '.local' / 'share' / 'fonts'
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / src.name
+        shutil.copy2(src, dest)
+    except OSError as error:
+        return False, f'Could not install font: {error}'
+
+    family = src.stem
+    try:
+        result = runner(['fc-scan', '--format', '%{family}', str(dest)],
+                        capture_output=True, text=True, timeout=5)
+        scanned = (result.stdout or '').split(',')[0].strip()
+        if scanned:
+            family = scanned
+    except Exception:
+        pass
+
+    try:
+        runner(['fc-cache', '-f'], capture_output=True, timeout=30)
+    except Exception:
+        pass
+
+    config.data['custom_font_family'] = family
+    config.data['font'] = 'custom'
+    config.save()
+    return True, family
 

@@ -208,11 +208,12 @@ class ShellWindow(Adw.ApplicationWindow):
         return root
 
     def _on_stack_swipe(self, _gesture: Gtk.GestureSwipe, vel_x: float, vel_y: float) -> None:
-        # Vertical swipes: shade (down) or switcher (up)
+        # Vertical swipes: configured swipe-down action, or switcher (up)
         if abs(vel_y) > abs(vel_x) * 1.5:
             self._swipe_navigated = True
             if vel_y > 300:
-                self._show_shade()
+                self._dispatch_gesture_action(
+                    self.gesture_config.get('swipe_down_top') or 'notification_shade')
             elif vel_y < -400:
                 self._show_switcher()
             return
@@ -225,6 +226,16 @@ class ShellWindow(Adw.ApplicationWindow):
             self._drawer_open_folder = None
             self._populate_apps(self.apps_search.get_text())
             return
+        # Home swipes dispatch their configured apps (design.md "Gestures");
+        # an unbound ('none') swipe falls through to page navigation so the
+        # drawer stays reachable without lisgd.
+        if current == 'home' and not self._home_launcher.edit_mode:
+            action = self.gesture_config.get(
+                'swipe_left_home' if vel_x < -200 else 'swipe_right_home')
+            if abs(vel_x) > 200 and action != 'none':
+                self._swipe_navigated = True
+                self._dispatch_gesture_action(action)
+                return
         idx = _PAGE_ORDER.index(current) if current in _PAGE_ORDER else 0
         if vel_x < -200 and idx < len(_PAGE_ORDER) - 1:
             self._swipe_navigated = True
@@ -234,6 +245,50 @@ class ShellWindow(Adw.ApplicationWindow):
             self._swipe_navigated = True
             self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_RIGHT)
             self.stack.set_visible_child_name(_PAGE_ORDER[idx - 1])
+
+    def _dispatch_gesture_action(self, action: str) -> None:
+        """Run a gesture_config action, including launch:<app_id> bindings."""
+        if action.startswith('launch:'):
+            self._launch_app_id(action[len('launch:'):])
+            return
+        if action == 'notification_shade':
+            self._show_shade()
+        elif action == 'search':
+            # Opens the drawer with keyboard focus in the search field
+            self.stack.set_visible_child_name('apps')
+            self.apps_search.grab_focus()
+        elif action == 'home':
+            self.stack.set_visible_child_name('home')
+        elif action == 'app_switcher':
+            self._show_switcher()
+        elif action == 'lock_screen':
+            self._show_lock_screen()
+        elif action == 'settings':
+            self.stack.set_visible_child_name('settings')
+        elif action == 'dialer':
+            self._open_dialer()
+        elif action == 'back':
+            self._handle_back()
+        elif action == 'camera':
+            camera = next(
+                (e for e in self.app_index.entries if 'camera' in e.name.casefold()), None)
+            if camera is not None:
+                self._launch_entry(camera)
+
+    def _launch_app_id(self, app_id: str) -> None:
+        from gi.repository import Gio
+        try:
+            info = Gio.DesktopAppInfo.new(app_id)
+        except Exception:
+            info = None
+        if info is None:
+            # Uninstalled target — behave like 'none' per Workstream 8.1
+            return
+        try:
+            info.launch([], None)
+            self.config.record_launch(app_id)
+        except GLib.Error as error:
+            self._show_status(f'Failed to launch: {error.message}')
 
     def _on_stack_swipe_drag_end(
         self, _gesture: Gtk.GestureSwipe, offset_x: float, offset_y: float
