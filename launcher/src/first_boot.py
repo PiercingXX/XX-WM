@@ -100,15 +100,32 @@ _TIMEZONES = [
 ]
 
 
+def keyboard_step_available() -> bool:
+    """True when squeekboard + the Colemak layouts are installed (18.3)."""
+    import shutil
+    from pathlib import Path
+    if not shutil.which('squeekboard'):
+        return False
+    return any(
+        path.exists() for path in (
+            Path.home() / '.local' / 'share' / 'squeekboard' / 'keyboards',
+            Path('/usr/share/piercing-shell/squeekboard'),
+        )
+    )
+
+
 class FirstBootWizard(Gtk.Window):
     """
-    Minimal first-run setup: password, theme, timezone.
-    Shown once on first boot before the lock screen is configured.
-    Marks completion by writing config — subsequent boots skip it.
+    First-run setup (PIN, theme, timezone) followed by the usage walkthrough:
+    an interactive gesture tour, shade / DnD & Focus / config-file pages, and
+    a try-the-keyboard step when squeekboard is present. `tour_only=True`
+    replays just the walkthrough (`piercing-shell --welcome`).
     """
 
-    def __init__(self, on_complete: Callable[[], None]) -> None:
+    def __init__(self, on_complete: Callable[[], None],
+                 tour_only: bool = False) -> None:
         super().__init__(title='PiercingOS Setup')
+        self._tour_only = tour_only
 
         if _LAYER_SHELL and LayerShell.is_supported():
             LayerShell.init_for_window(self)
@@ -153,6 +170,13 @@ class FirstBootWizard(Gtk.Window):
         self._stack.add_named(self._build_pin_confirm_step(), 'pin_confirm')
         self._stack.add_named(self._build_theme_step(), 'theme')
         self._stack.add_named(self._build_timezone_step(), 'timezone')
+
+        self._tour_pages = self._build_tour_pages()
+        for name, widget in self._tour_pages:
+            self._stack.add_named(widget, name)
+
+        if tour_only:
+            self._stack.set_visible_child_name(self._tour_pages[0][0])
 
         root = Gtk.Box()
         root.add_css_class('wizard-root')
@@ -386,6 +410,141 @@ class FirstBootWizard(Gtk.Window):
         page.append(finish_btn)
         return page
 
+    # ------------------------------------------------------------------
+    # Walkthrough (Workstream 18) — gesture tour + info pages
+    # ------------------------------------------------------------------
+
+    def _build_tour_pages(self) -> list[tuple[str, Gtk.Widget]]:
+        pages: list[tuple[str, Gtk.Widget]] = [
+            ('tour_swipe_up', self._gesture_page(
+                'Swipe up', 'Opens the app drawer — every app, searchable.\n\nTry it now.',
+                kind='swipe_up')),
+            ('tour_swipe_down', self._gesture_page(
+                'Swipe down', 'Opens notifications and quick settings.\n\nTry it now.',
+                kind='swipe_down')),
+            ('tour_swipe_side', self._gesture_page(
+                'Swipe sideways', 'Switches between recent apps.\n\nTry it now.',
+                kind='swipe_side')),
+            ('tour_long_press', self._gesture_page(
+                'Long-press home', 'Edits your home slots — reorder, rename, add apps and folders.\n\nHold anywhere now.',
+                kind='long_press')),
+            ('info_shade', self._info_page(
+                'Shade & quick settings',
+                'Swipe down anytime: WiFi, Bluetooth, torch and more, brightness '
+                'and volume, your notifications, and an inline calendar behind '
+                'the date.')),
+            ('info_focus', self._info_page(
+                'Do Not Disturb & Focus',
+                'DnD silences everything except starred contacts and repeat '
+                'callers.\n\nFocus pauses distracting apps and holds their '
+                'notifications until you are done. Both live in quick settings.')),
+        ]
+        if keyboard_step_available():
+            pages.append(('tour_keyboard', self._keyboard_page()))
+        pages.append(('info_files', self._final_page()))
+        return pages
+
+    def _advance_tour(self) -> None:
+        names = [name for name, _w in self._tour_pages]
+        current = self._stack.get_visible_child_name()
+        if current not in names:
+            self._stack.set_visible_child_name(names[0])
+            return
+        idx = names.index(current)
+        if idx + 1 < len(names):
+            self._stack.set_visible_child_name(names[idx + 1])
+        else:
+            self._finish_tour()
+
+    def _finish_tour(self) -> None:
+        self._on_complete()
+        GLib.idle_add(self.close)
+
+    def _tour_scaffold(self, title_text: str, body_text: str) -> tuple[Gtk.Box, Gtk.Box]:
+        page = self._page()
+        title = Gtk.Label(label=title_text, xalign=0)
+        title.add_css_class('wizard-title')
+        body = Gtk.Label(label=body_text, xalign=0, wrap=True)
+        body.add_css_class('wizard-subtitle')
+        spacer = Gtk.Box()
+        spacer.set_vexpand(True)
+        page.append(title)
+        page.append(body)
+        page.append(spacer)
+
+        footer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        page.append(footer)
+        return page, footer
+
+    def _skip_button(self) -> Gtk.Button:
+        skip = Gtk.Button(label='Skip')
+        skip.add_css_class('flat')
+        skip.add_css_class('wizard-skip')
+        skip.connect('clicked', lambda _b: self._advance_tour())
+        return skip
+
+    def _gesture_page(self, title_text: str, body_text: str, kind: str) -> Gtk.Widget:
+        page, footer = self._tour_scaffold(title_text, body_text)
+        footer.append(self._skip_button())
+
+        if kind == 'long_press':
+            gesture = Gtk.GestureLongPress.new()
+            gesture.set_touch_only(False)
+            gesture.connect('pressed', lambda _g, _x, _y: self._advance_tour())
+            page.add_controller(gesture)
+        else:
+            swipe = Gtk.GestureSwipe.new()
+            swipe.set_touch_only(False)
+
+            def _on_swipe(_g: Gtk.GestureSwipe, vx: float, vy: float,
+                          k: str = kind) -> None:
+                if k == 'swipe_up' and vy < -300 and abs(vy) > abs(vx):
+                    self._advance_tour()
+                elif k == 'swipe_down' and vy > 300 and abs(vy) > abs(vx):
+                    self._advance_tour()
+                elif k == 'swipe_side' and abs(vx) > 300 and abs(vx) > abs(vy):
+                    self._advance_tour()
+
+            swipe.connect('swipe', _on_swipe)
+            page.add_controller(swipe)
+        return page
+
+    def _info_page(self, title_text: str, body_text: str) -> Gtk.Widget:
+        page, footer = self._tour_scaffold(title_text, body_text)
+        next_btn = Gtk.Button(label='Next')
+        next_btn.add_css_class('wizard-next')
+        next_btn.connect('clicked', lambda _b: self._advance_tour())
+        footer.append(next_btn)
+        return page
+
+    def _keyboard_page(self) -> Gtk.Widget:
+        page, footer = self._tour_scaffold(
+            'Try the keyboard',
+            'PiercingOS ships a Colemak layout. Tap the field — the keyboard '
+            'appears whenever you need to type.')
+        entry = Gtk.Entry()
+        entry.set_placeholder_text('Type something…')
+        entry.set_margin_bottom(16)
+        page.insert_child_after(entry, page.get_first_child().get_next_sibling())
+        next_btn = Gtk.Button(label='Next')
+        next_btn.add_css_class('wizard-next')
+        next_btn.connect('clicked', lambda _b: self._advance_tour())
+        footer.append(next_btn)
+        return page
+
+    def _final_page(self) -> Gtk.Widget:
+        page, footer = self._tour_scaffold(
+            'Everything is a text file',
+            'Every shell preference lives in ~/.config/piercing-shell/ — edit '
+            'it in a terminal and the shell reloads live. The full reference '
+            'is docs/config.md.\n\nReplay this tour anytime with:\n'
+            'piercing-shell --welcome')
+        done_btn = Gtk.Button(label='Done')
+        done_btn.add_css_class('wizard-next')
+        done_btn.connect('clicked', lambda _b: self._finish_tour())
+        footer.append(done_btn)
+        return page
+
     def _on_theme_selected(self, dropdown: Gtk.DropDown, _param: object) -> None:
         theme_key = list(THEME_PRESETS)[dropdown.get_selected()]
         preset = THEME_PRESETS[theme_key]
@@ -440,7 +599,6 @@ class FirstBootWizard(Gtk.Window):
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             pass
+        # Setup is durable from here even if the walkthrough is skipped
         self._config.save()
-        # Create shell window BEFORE closing wizard so GTK doesn't auto-quit
-        self._on_complete()
-        GLib.idle_add(self.close)
+        self._advance_tour()

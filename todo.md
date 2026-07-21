@@ -184,9 +184,9 @@ Extends 9.4 — this is the canonical list. Built-in already: **Phone** (dialer/
 
 `first_boot.py` already does PIN + theme. This extends it into the usage walkthrough — explicitly the final workstream; don't start until 1–17 are stable.
 
-- [ ] **18.1 Walkthrough pages** — after PIN/theme: interactive gesture tour (swipe up → drawer, swipe down → shade, sideways → switcher, long-press → edit mode — each page waits for the actual gesture, with a `Skip` always visible), then one page each: shade/quick settings, DnD & Focus, "everything is a text file" (point at `~/.config/piercing-shell/` + `docs/config.md`).
-- [ ] **18.2 Re-runnable** — `piercing-shell --welcome` (or IPC verb) to replay the tour; mention it on the final page.
-- [ ] **18.3 Keyboard step** — if squeekboard + Colemak layouts present (16), a try-the-keyboard page with a text field; skip silently when absent.
+- [x] **18.1 Walkthrough pages** — after PIN/theme: interactive gesture tour (swipe up → drawer, swipe down → shade, sideways → switcher, long-press → edit mode — each page waits for the actual gesture, with a `Skip` always visible), then one page each: shade/quick settings, DnD & Focus, "everything is a text file" (point at `~/.config/piercing-shell/` + `docs/config.md`).
+- [x] **18.2 Re-runnable** — `piercing-shell --welcome` (or IPC verb) to replay the tour; mention it on the final page.
+- [x] **18.3 Keyboard step** — if squeekboard + Colemak layouts present (16), a try-the-keyboard page with a text field; skip silently when absent.
 
 ---
 

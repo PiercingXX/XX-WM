@@ -19,11 +19,12 @@ _log = get_logger('main')
 
 
 class PiercingShellApplication(Adw.Application):
-    def __init__(self) -> None:
+    def __init__(self, replay_welcome: bool = False) -> None:
         super().__init__(
             application_id='io.piercingxx.PiercingShell',
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
+        self._replay_welcome = replay_welcome
         self._shell: ShellWindow | None = None
         self._ipc: IPCServer | None = None
         self._notif_daemon: NotificationDaemon | None = None
@@ -74,6 +75,15 @@ class PiercingShellApplication(Adw.Application):
         back = BackGestureLayer()
         back.set_application(self)
         self._shell._back_layer = back
+
+        if self._replay_welcome:
+            self._replay_welcome = False
+            self._show_welcome_tour()
+
+    def _show_welcome_tour(self) -> None:
+        wizard = FirstBootWizard(on_complete=lambda: None, tour_only=True)
+        wizard.set_application(self)
+        wizard.present()
 
     def _on_notification(
         self, notif_id: int, app_name: str, summary: str, body: str,
@@ -163,6 +173,8 @@ class PiercingShellApplication(Adw.Application):
             GLib.idle_add(lambda: self._shell._show_shade() if self._shell else None)
         elif command == 'gesture.switcher':
             GLib.idle_add(lambda: self._shell._show_switcher() if self._shell else None)
+        elif command == 'welcome':
+            GLib.idle_add(self._show_welcome_tour)
 
     def _on_sleep(self, sleeping: bool) -> None:
         if sleeping and self._shell:
@@ -190,8 +202,12 @@ def _setup_logind(on_sleep_callback: object) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     setup_logging()
-    app = PiercingShellApplication()
-    return app.run(argv or sys.argv)
+    argv = list(argv if argv is not None else sys.argv)
+    replay_welcome = '--welcome' in argv
+    if replay_welcome:
+        argv.remove('--welcome')
+    app = PiercingShellApplication(replay_welcome=replay_welcome)
+    return app.run(argv)
 
 
 if __name__ == '__main__':
