@@ -254,7 +254,16 @@ class QuickActionsPanel(Gtk.Box):
     def _tiles(self) -> list[_TileDef]:
         tiles = []
         for tile in _TILES:
-            if tile.key == 'dnd' and self._dnd is not None:
+            # Stub tiles stay hidden until something real backs them
+            if tile.key in ('location', 'hotspot'):
+                continue
+            if tile.key == 'auto_br' and not self._als.available():
+                continue
+            if tile.key == 'torch' and not any(Path('/sys/class/leds').glob('*torch*')):
+                continue
+            if tile.key == 'dnd':
+                if self._dnd is None:
+                    continue
                 tile = tile._replace(
                     get_state=lambda: bool(self._dnd.is_active()),
                     set_state=lambda v: self._dnd.set_enabled(v),

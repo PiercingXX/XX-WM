@@ -46,6 +46,7 @@ python.install_sources(
     'src/power_menu.py',
     'src/back_gesture.py',
     'src/app_item_actions.py',
+    'src/calendar_grid.py',
     'src/dnd.py',
     'src/sound.py',
   ],

@@ -121,10 +121,10 @@ The lock screen stays ours — `lock_screen.py`, not phrog. Spec: `design.md` "L
 
 Spec: `design.md` "Notification shade & quick settings". Current shade has tiles+sliders+list but no header row.
 
-- [ ] **12.1 Date/time header** — top row of the shade: current date + time, updating while open (reuse the home clock tick pattern).
-- [ ] **12.2 Calendar expand** — tapping the date/time expands an inline month view: text-first grid (Mo–Su columns, current day emphasized), no events, prev/next month arrows. Tap again collapses. Pure GLib.DateTime math — unit-test month-grid generation (leap years, week starts).
-- [ ] **12.3 Settings entry** — right side of the header: a `Settings` text button → collapse the shade, open the launcher's settings page (`window.py` stack navigation via the existing IPC/window handle).
-- [ ] **12.4 Tile tier updates** — DnD and Focus become functional tier-2 tiles once Workstreams 13/14 land their state modules; keep `location`/`hotspot`/`auto_br` stubs hidden until backed by something real (same treatment as 8.3's hardware expander).
+- [x] **12.1 Date/time header** — top row of the shade: current date + time, updating while open (reuse the home clock tick pattern).
+- [x] **12.2 Calendar expand** — tapping the date/time expands an inline month view: text-first grid (Mo–Su columns, current day emphasized), no events, prev/next month arrows. Tap again collapses. Pure GLib.DateTime math — unit-test month-grid generation (leap years, week starts).
+- [x] **12.3 Settings entry** — right side of the header: a `Settings` text button → collapse the shade, open the launcher's settings page (`window.py` stack navigation via the existing IPC/window handle).
+- [x] **12.4 Tile tier updates** — DnD and Focus become functional tier-2 tiles once Workstreams 13/14 land their state modules; keep `location`/`hotspot`/`auto_br` stubs hidden until backed by something real (same treatment as 8.3's hardware expander).
 
 ## Workstream 13 — Do Not Disturb (Pixel model)
 

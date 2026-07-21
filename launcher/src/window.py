@@ -474,7 +474,11 @@ class ShellWindow(Adw.ApplicationWindow):
     def _ensure_shade(self) -> object:
         if self._shade is None:
             from notification_shade import NotificationShade
-            self._shade = NotificationShade(dnd_state=self.dnd_state)
+            self._shade = NotificationShade(
+                dnd_state=self.dnd_state,
+                on_open_settings=lambda: (
+                    self.stack.set_visible_child_name('settings'), self.present()),
+            )
             self._shade.set_application(self.get_application())
         return self._shade
 

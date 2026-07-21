@@ -101,9 +101,10 @@ class PiercingShellApplication(Adw.Application):
             import sound
             sound.play('notify.wav')
 
-        shade = getattr(self._shell, '_shade', None)
-        if shade is not None:
-            shade.add_notification(notif_id, app_name, summary, body, desktop_entry)
+        # Create the shade on first notification so nothing is lost before
+        # the user first opens it
+        self._shell._ensure_shade().add_notification(
+            notif_id, app_name, summary, body, desktop_entry)
 
     def _on_notification_closed(self, notif_id: int) -> None:
         if self._shell is None:
