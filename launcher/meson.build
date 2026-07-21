@@ -50,6 +50,7 @@ python.install_sources(
     'src/dnd.py',
     'src/focus_mode.py',
     'src/sound.py',
+    'src/system_settings.py',
     'src/weather.py',
   ],
   subdir: shell_subdir,

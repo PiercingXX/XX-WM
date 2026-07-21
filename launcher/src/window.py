@@ -18,8 +18,8 @@ if _LAYER_SHELL:
 
 from app_index import AppEntry, AppIndex
 from app_item_actions import AppItemActions
-from config import FONT_FAMILIES, THEME_PRESETS, ShellConfig
-from gesture_config import ACTION_LABELS, GESTURE_LABELS, GestureConfig, VALID_ACTIONS
+from config import DEFAULT_CONFIG, ShellConfig
+from gesture_config import GestureConfig
 from system_status import status_line
 
 _PAGE_ORDER = ['home', 'apps', 'settings']
@@ -107,41 +107,6 @@ class ShellWindow(Adw.ApplicationWindow):
         self.apps_search.connect('search-changed', self._on_apps_search_changed)
         self.apps_search.connect('activate', self._on_apps_search_activate)
 
-        self.theme_dropdown = Gtk.DropDown.new_from_strings([preset.name for preset in THEME_PRESETS.values()])
-        self.theme_dropdown.connect('notify::selected', self._on_theme_changed)
-
-        self.font_dropdown = Gtk.DropDown.new_from_strings(['Sans Light', 'Space Mono', 'JetBrains Mono', 'JetBrains Mono Nerd'])
-        self.font_dropdown.connect('notify::selected', self._on_font_changed)
-
-        self.dark_mode_switch = Gtk.Switch(active=self.config.prefer_dark)
-        self.dark_mode_switch.connect('notify::active', self._on_dark_mode_toggled)
-
-        _size_labels = ['XS (70%)', 'S (85%)', 'Normal', 'L (115%)', 'XL (130%)']
-        _size_values = [0.7, 0.85, 1.0, 1.15, 1.3]
-        self._size_values = _size_values
-        self.size_dropdown = Gtk.DropDown.new_from_strings(_size_labels)
-        cur_scale = self.config.text_size_scale
-        closest = min(range(len(_size_values)), key=lambda i: abs(_size_values[i] - cur_scale))
-        self.size_dropdown.set_selected(closest)
-        self.size_dropdown.connect('notify::selected', self._on_size_changed)
-
-        _align_labels = ['Left', 'Center', 'Right']
-        _align_values = ['left', 'center', 'right']
-        self._align_values = _align_values
-        self.align_dropdown = Gtk.DropDown.new_from_strings(_align_labels)
-        cur_align = self.config.home_alignment
-        self.align_dropdown.set_selected(_align_values.index(cur_align) if cur_align in _align_values else 0)
-        self.align_dropdown.connect('notify::selected', self._on_align_changed)
-
-        _lock_labels = ['Never', '30 sec', '1 min', '2 min', '5 min', '10 min']
-        _lock_seconds = [0, 30, 60, 120, 300, 600]
-        self._lock_seconds = _lock_seconds
-        self.auto_lock_dropdown = Gtk.DropDown.new_from_strings(_lock_labels)
-        cur_timeout = self.config.auto_lock_timeout
-        idx = _lock_seconds.index(cur_timeout) if cur_timeout in _lock_seconds else 3
-        self.auto_lock_dropdown.set_selected(idx)
-        self.auto_lock_dropdown.connect('notify::selected', self._on_auto_lock_changed)
-
         self.status_label = Gtk.Label(xalign=0)
         self.status_label.add_css_class('dim-label')
 
@@ -175,12 +140,12 @@ class ShellWindow(Adw.ApplicationWindow):
         key_ctrl.connect('key-pressed', self._on_key_pressed)
         self.add_controller(key_ctrl)
 
-        self._sync_controls_from_config()
         self._apply_theme()
         self._refresh_clock()
         self._populate_apps()
         self._refresh_status()
         self._setup_idle_timer()
+        self._setup_config_monitor()
         GLib.timeout_add_seconds(1, self._tick_clock)
         GLib.timeout_add_seconds(60, self._tick_status)
 
@@ -352,21 +317,12 @@ class ShellWindow(Adw.ApplicationWindow):
 
         self._clock_tap_timer: int | None = None
 
-        widget_map = {
-            'time': self.clock_label,
-            'date': self.date_label,
-            'weather': self.weather_label,
-            'battery': self.status_strip,
-        }
         clock_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         clock_inner.set_halign(Gtk.Align.FILL)
         clock_inner.set_hexpand(True)
-        for key, conf in self.config.ordered_widgets():
-            widget = widget_map.get(key)
-            if widget is None:
-                continue
-            self._wire_widget_tap(widget, key, conf.get('tap', 'default'))
-            clock_inner.append(widget)
+        self._widget_block = clock_inner
+        self._widget_taps_wired: set[str] = set()
+        self._build_widget_block()
 
         self._init_weather()
 
@@ -535,35 +491,60 @@ class ShellWindow(Adw.ApplicationWindow):
         except FileNotFoundError:
             pass
 
-    def _wire_widget_tap(self, widget: Gtk.Widget, key: str, tap: object) -> None:
+    def _build_widget_block(self) -> None:
+        block = self._widget_block
+        child = block.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            block.remove(child)
+            child = nxt
+        widget_map = {
+            'time': self.clock_label,
+            'date': self.date_label,
+            'weather': self.weather_label,
+            'battery': self.status_strip,
+        }
+        for key, _conf in self.config.ordered_widgets():
+            widget = widget_map.get(key)
+            if widget is None:
+                continue
+            if key not in self._widget_taps_wired:
+                self._wire_widget_tap(widget, key)
+                self._widget_taps_wired.add(key)
+            block.append(widget)
+
+    def _current_tap(self, key: str) -> object:
+        # Read at dispatch time so a hot-reloaded config takes effect
+        return self.config.widgets.get(key, {}).get('tap', 'default')
+
+    def _wire_widget_tap(self, widget: Gtk.Widget, key: str) -> None:
         if key == 'time':
             # The clock keeps double-tap-to-lock; a single tap (after the
             # double-tap window passes) runs the configured action
             tap_gesture = Gtk.GestureClick.new()
             tap_gesture.connect(
-                'pressed',
-                lambda _g, n, _x, _y, t=tap: self._on_clock_tapped(n, t))
+                'pressed', lambda _g, n, _x, _y: self._on_clock_tapped(n))
             widget.add_controller(tap_gesture)
-            return
-        if tap == 'none':
             return
         gesture = Gtk.GestureClick.new()
         gesture.connect(
             'pressed',
-            lambda _g, _n, _x, _y, k=key, t=tap: self._dispatch_widget_tap(k, t))
+            lambda _g, _n, _x, _y, k=key: self._dispatch_widget_tap(k, self._current_tap(k)))
         widget.add_controller(gesture)
 
-    def _on_clock_tapped(self, n_press: int, tap: object) -> None:
+    def _on_clock_tapped(self, n_press: int) -> None:
         if n_press == 2:
             if self._clock_tap_timer is not None:
                 GLib.source_remove(self._clock_tap_timer)
                 self._clock_tap_timer = None
             self._show_lock_screen()
             return
-        if n_press == 1 and tap != 'none' and self._clock_tap_timer is None:
+        if n_press == 1 and self._clock_tap_timer is None:
             def _fire() -> bool:
                 self._clock_tap_timer = None
-                self._dispatch_widget_tap('time', tap)
+                tap = self._current_tap('time')
+                if tap != 'none':
+                    self._dispatch_widget_tap('time', tap)
                 return GLib.SOURCE_REMOVE
             self._clock_tap_timer = GLib.timeout_add(280, _fire)
 
@@ -820,6 +801,60 @@ class ShellWindow(Adw.ApplicationWindow):
         backup_card.append(export_btn)
         backup_card.append(restore_btn)
 
+        # WiFi
+        wifi_title = Gtk.Label(label='WiFi', xalign=0)
+        wifi_title.add_css_class('section-title')
+
+        wifi_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        wifi_card.add_css_class('settings-card')
+        self._wifi_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        wifi_scan_btn = Gtk.Button(label='Scan for networks')
+        wifi_scan_btn.add_css_class('flat')
+        wifi_scan_btn.add_css_class('action-link')
+        wifi_scan_btn.connect('clicked', lambda _b: self._refresh_wifi())
+        wifi_card.append(self._wifi_list_box)
+        wifi_card.append(wifi_scan_btn)
+
+        # Bluetooth
+        bt_title = Gtk.Label(label='Bluetooth', xalign=0)
+        bt_title.add_css_class('section-title')
+
+        bt_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        bt_card.add_css_class('settings-card')
+        self._bt_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        bt_scan_btn = Gtk.Button(label='Scan for devices')
+        bt_scan_btn.add_css_class('flat')
+        bt_scan_btn.add_css_class('action-link')
+        bt_scan_btn.connect('clicked', lambda _b: self._refresh_bluetooth(scan=True))
+        bt_card.append(self._bt_list_box)
+        bt_card.append(bt_scan_btn)
+
+        # Sound output
+        sound_title = Gtk.Label(label='Sound output', xalign=0)
+        sound_title.add_css_class('section-title')
+
+        sound_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        sound_card.add_css_class('settings-card')
+        self._sink_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        sound_card.append(self._sink_list_box)
+
+        # Battery
+        battery_title = Gtk.Label(label='Battery', xalign=0)
+        battery_title.add_css_class('section-title')
+
+        battery_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        battery_card.add_css_class('settings-card')
+        self._battery_label = Gtk.Label(label='Checking…', xalign=0)
+        self._battery_label.add_css_class('dim-label')
+        battery_card.append(self._battery_label)
+
+        # Refresh the quick sections whenever the settings page is opened
+        self.stack.connect(
+            'notify::visible-child-name',
+            lambda stack, _p: self._refresh_system_sections()
+            if stack.get_visible_child_name() == 'settings' else None,
+        )
+
         # Mobile data / APN
         network_title = Gtk.Label(label='Mobile data', xalign=0)
         network_title.add_css_class('section-title')
@@ -868,6 +903,14 @@ class ShellWindow(Adw.ApplicationWindow):
 
         box.append(system_title)
         box.append(system_card)
+        box.append(wifi_title)
+        box.append(wifi_card)
+        box.append(bt_title)
+        box.append(bt_card)
+        box.append(sound_title)
+        box.append(sound_card)
+        box.append(battery_title)
+        box.append(battery_card)
         box.append(backup_title)
         box.append(backup_card)
         box.append(network_title)
@@ -879,33 +922,161 @@ class ShellWindow(Adw.ApplicationWindow):
         return scroll
 
 
-    def _gesture_row(self, gesture_key: str, current_action: str) -> Gtk.Widget:
-        label = Gtk.Label(label=GESTURE_LABELS.get(gesture_key, gesture_key), xalign=0)
-        label.set_hexpand(True)
+    # -- system settings sections (design.md "Settings scope") -------------
+
+    @staticmethod
+    def _run_bg(work, on_done) -> None:
+        import threading
+
+        def _worker() -> None:
+            result = None
+            try:
+                result = work()
+            except Exception:
+                pass
+            GLib.idle_add(lambda: on_done(result) and False or False)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @staticmethod
+    def _replace_box_children(box: Gtk.Box, children: list[Gtk.Widget]) -> None:
+        child = box.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            box.remove(child)
+            child = nxt
+        for widget in children:
+            box.append(widget)
+
+    def _section_placeholder(self, text: str) -> Gtk.Label:
+        label = Gtk.Label(label=text, xalign=0)
         label.add_css_class('dim-label')
+        return label
 
-        action_keys = sorted(VALID_ACTIONS)
-        action_labels = [ACTION_LABELS.get(a, a) for a in action_keys]
-        dropdown = Gtk.DropDown.new_from_strings(action_labels)
-        if current_action in action_keys:
-            dropdown.set_selected(action_keys.index(current_action))
+    def _refresh_system_sections(self) -> None:
+        import system_settings
+        self._run_bg(system_settings.battery_status, self._show_battery)
+        self._run_bg(system_settings.list_audio_sinks, self._show_sinks)
+        self._run_bg(system_settings.list_bt_devices, self._show_bt_devices)
 
-        dropdown.connect(
-            'notify::selected',
-            lambda dd, _p, gk=gesture_key, keys=action_keys: self._on_gesture_changed(dd, gk, keys),
+    def _show_battery(self, status: str | None) -> None:
+        self._battery_label.set_text(status or 'No battery detected.')
+
+    def _show_sinks(self, sinks) -> None:
+        if sinks is None:
+            self._replace_box_children(
+                self._sink_list_box,
+                [self._section_placeholder('Audio system unavailable.')])
+            return
+        rows = []
+        for sink in sinks:
+            marker = '● ' if sink.is_default else ''
+            btn = Gtk.Button(label=marker + sink.description)
+            btn.add_css_class('flat')
+            btn.add_css_class('action-link' if sink.is_default else 'dim-label')
+            btn.get_child().set_xalign(0)
+            btn.connect('clicked', lambda _b, s=sink: self._on_sink_selected(s))
+            rows.append(btn)
+        self._replace_box_children(
+            self._sink_list_box,
+            rows or [self._section_placeholder('No output devices.')])
+
+    def _on_sink_selected(self, sink) -> None:
+        import system_settings
+        self._run_bg(
+            lambda: system_settings.set_default_sink(sink.name),
+            lambda ok: (self._show_status(
+                f'Output set to {sink.description}.' if ok else 'Could not switch output.'),
+                self._run_bg(system_settings.list_audio_sinks, self._show_sinks)),
         )
 
-        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        row.append(label)
-        row.append(dropdown)
-        return row
+    def _refresh_wifi(self) -> None:
+        import system_settings
+        self._replace_box_children(
+            self._wifi_list_box, [self._section_placeholder('Scanning…')])
+        self._run_bg(system_settings.list_wifi, self._show_wifi)
 
-    def _on_gesture_changed(self, dropdown: Gtk.DropDown, gesture_key: str, action_keys: list[str]) -> None:
-        action = action_keys[dropdown.get_selected()]
-        try:
-            self.gesture_config.set(gesture_key, action)
-        except ValueError:
-            pass
+    def _show_wifi(self, networks) -> None:
+        if networks is None:
+            self._replace_box_children(
+                self._wifi_list_box,
+                [self._section_placeholder('WiFi unavailable on this device.')])
+            return
+        rows = []
+        for net in networks[:12]:
+            marker = '● ' if net.in_use else ''
+            lock = '' if net.security == 'open' else '  ⚿'
+            btn = Gtk.Button(label=f'{marker}{net.ssid}{lock}  ({net.signal}%)')
+            btn.add_css_class('flat')
+            btn.add_css_class('action-link' if net.in_use else 'dim-label')
+            btn.get_child().set_xalign(0)
+            btn.connect('clicked', lambda _b, n=net, w=btn: self._on_wifi_selected(n, w))
+            rows.append(btn)
+        self._replace_box_children(
+            self._wifi_list_box,
+            rows or [self._section_placeholder('No networks found.')])
+
+    def _on_wifi_selected(self, net, widget: Gtk.Widget) -> None:
+        if net.in_use:
+            self._show_status(f'Already connected to {net.ssid}.')
+            return
+        if net.security == 'open':
+            self._connect_wifi(net.ssid, None)
+            return
+        self.item_actions._show_entry_dialog(
+            widget, f'Password for {net.ssid}', '', 'Connect',
+            lambda password: self._connect_wifi(net.ssid, password))
+
+    def _connect_wifi(self, ssid: str, password: str | None) -> None:
+        import system_settings
+        self._show_status(f'Connecting to {ssid}…')
+        self._run_bg(
+            lambda: system_settings.connect_wifi(ssid, password),
+            lambda result: (self._show_status(result[1] if result else 'Connection failed.'),
+                            self._refresh_wifi()),
+        )
+
+    def _refresh_bluetooth(self, scan: bool = False) -> None:
+        import system_settings
+        if scan:
+            self._replace_box_children(
+                self._bt_list_box, [self._section_placeholder('Scanning…')])
+            system_settings.start_bt_discovery()
+            GLib.timeout_add_seconds(
+                6, lambda: self._run_bg(system_settings.list_bt_devices,
+                                        self._show_bt_devices) or False)
+            return
+        self._run_bg(system_settings.list_bt_devices, self._show_bt_devices)
+
+    def _show_bt_devices(self, devices) -> None:
+        if devices is None:
+            self._replace_box_children(
+                self._bt_list_box,
+                [self._section_placeholder('Bluetooth unavailable on this device.')])
+            return
+        rows = []
+        for dev in devices[:12]:
+            state = ' — connected' if dev.connected else (' — paired' if dev.paired else '')
+            btn = Gtk.Button(label=dev.name + state)
+            btn.add_css_class('flat')
+            btn.add_css_class('action-link' if dev.connected else 'dim-label')
+            btn.get_child().set_xalign(0)
+            btn.connect('clicked', lambda _b, d=dev: self._on_bt_selected(d))
+            rows.append(btn)
+        self._replace_box_children(
+            self._bt_list_box,
+            rows or [self._section_placeholder('No devices — scan to discover.')])
+
+    def _on_bt_selected(self, dev) -> None:
+        import system_settings
+        action = (system_settings.connect_bt_device if dev.paired
+                  else system_settings.pair_bt_device)
+        self._show_status(f'{"Connecting" if dev.paired else "Pairing"} {dev.name}…')
+        self._run_bg(
+            lambda: action(dev.address),
+            lambda result: (self._show_status(result[1] if result else 'Bluetooth error.'),
+                            self._refresh_bluetooth()),
+        )
 
     def _settings_row(self, title: str, control: Gtk.Widget) -> Gtk.Widget:
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -914,13 +1085,6 @@ class ShellWindow(Adw.ApplicationWindow):
         row.append(label)
         row.append(control)
         return row
-
-    def _sync_controls_from_config(self) -> None:
-        theme_keys = list(THEME_PRESETS)
-        font_keys = list(FONT_FAMILIES)
-        self.theme_dropdown.set_selected(theme_keys.index(self.config.theme.key))
-        self.font_dropdown.set_selected(font_keys.index(next(key for key, value in FONT_FAMILIES.items() if value == self.config.font_family)))
-        self.dark_mode_switch.set_active(self.config.prefer_dark)
 
     def _apply_theme(self) -> None:
         theme = self.config.theme
@@ -1333,6 +1497,66 @@ class ShellWindow(Adw.ApplicationWindow):
             return True
         return False
 
+    def _setup_config_monitor(self) -> None:
+        """Hot reload: editing ~/.config/piercing-shell/* in a terminal is a
+        first-class workflow (design.md "Settings scope"). Debounced; invalid
+        files keep the last good config."""
+        from gi.repository import Gio
+        self._config_reload_timer: int | None = None
+        self._config_monitors = []
+        gestures_path = self.config.config_dir / 'gestures.json'
+        for path in (self.config.config_path, gestures_path):
+            try:
+                monitor = Gio.File.new_for_path(str(path)).monitor_file(
+                    Gio.FileMonitorFlags.NONE, None)
+                monitor.connect('changed', self._on_config_file_changed)
+                self._config_monitors.append(monitor)
+            except GLib.Error:
+                pass
+
+    def _on_config_file_changed(self, _monitor, _file, _other, event) -> None:
+        from gi.repository import Gio
+        if event not in (Gio.FileMonitorEvent.CHANGED,
+                         Gio.FileMonitorEvent.CHANGES_DONE_HINT,
+                         Gio.FileMonitorEvent.CREATED,
+                         Gio.FileMonitorEvent.RENAMED):
+            return
+        if self._config_reload_timer is not None:
+            GLib.source_remove(self._config_reload_timer)
+        self._config_reload_timer = GLib.timeout_add(300, self._reload_config)
+
+    def _reload_config(self) -> bool:
+        self._config_reload_timer = None
+        import json
+        loaded: dict | None = None
+        try:
+            if self.config.config_path.exists():
+                loaded = json.loads(self.config.config_path.read_text(encoding='utf-8'))
+                if not isinstance(loaded, dict):
+                    raise ValueError('config root must be an object')
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            from shell_log import get_logger
+            get_logger('window').warning('config reload skipped: %s', error)
+            return GLib.SOURCE_REMOVE
+        # Gestures re-read is cheap and side-effect free
+        self.gesture_config = GestureConfig()
+        # Skip the UI rebuild when the change was our own save
+        if loaded is not None and loaded == self.config.data:
+            return GLib.SOURCE_REMOVE
+        self.config.data = dict(DEFAULT_CONFIG)
+        self.config.load()
+        self._apply_config_change()
+        return GLib.SOURCE_REMOVE
+
+    def _apply_config_change(self) -> None:
+        """Re-apply everything a config edit can influence."""
+        self._apply_theme()
+        self._build_widget_block()
+        self._home_launcher.refresh()
+        self._populate_apps(self.apps_search.get_text())
+        self._refresh_weather()
+        self._setup_idle_timer()
+
     def _setup_idle_timer(self) -> None:
         if self._idle_timer_id is not None:
             GLib.source_remove(self._idle_timer_id)
@@ -1348,11 +1572,6 @@ class ShellWindow(Adw.ApplicationWindow):
         self._idle_timer_id = None
         self._show_lock_screen()
         return False
-
-    def _on_auto_lock_changed(self, dropdown: Gtk.DropDown, _p: object) -> None:
-        seconds = self._lock_seconds[dropdown.get_selected()]
-        self.config.set_auto_lock_timeout(seconds)
-        self._setup_idle_timer()
 
     def _on_apn_save(self, _btn: Gtk.Button) -> None:
         apn = self.apn_entry.get_text().strip()
@@ -1508,35 +1727,6 @@ class ShellWindow(Adw.ApplicationWindow):
         except GLib.Error as error:
             self._show_status(f'No browser available: {error.message}')
 
-    def _on_theme_changed(self, dropdown: Gtk.DropDown, _paramspec: object) -> None:
-        theme_key = list(THEME_PRESETS)[dropdown.get_selected()]
-        self.config.set_theme(theme_key)
-        self._apply_theme()
-        self._show_status(f'Theme set to {THEME_PRESETS[theme_key].name}.')
-
-    def _on_font_changed(self, dropdown: Gtk.DropDown, _paramspec: object) -> None:
-        font_key = list(FONT_FAMILIES)[dropdown.get_selected()]
-        self.config.set_font(font_key)
-        self._apply_theme()
-        self._show_status('Font family updated.')
-
-    def _on_dark_mode_toggled(self, switch: Gtk.Switch, _paramspec: object) -> None:
-        self.config.set_prefer_dark(switch.get_active())
-        self._apply_theme()
-        self._show_status('Surface mode updated.')
-
-    def _on_size_changed(self, dropdown: Gtk.DropDown, _p: object) -> None:
-        scale = self._size_values[dropdown.get_selected()]
-        self.config.set_text_size_scale(scale)
-        self._apply_theme()
-        self._show_status('Text size updated.')
-
-    def _on_align_changed(self, dropdown: Gtk.DropDown, _p: object) -> None:
-        alignment = self._align_values[dropdown.get_selected()]
-        self.config.set_home_alignment(alignment)
-        self._home_launcher.refresh()
-        self._show_status('Home alignment updated.')
-
     def _on_update_clicked(self, _btn: Gtk.Button | None = None) -> None:
         from update_checker import run_update_script
         ok, detail = run_update_script(self.config.update_script)
@@ -1633,9 +1823,7 @@ class ShellWindow(Adw.ApplicationWindow):
             success = restore_backup(self.config, payload)
             if success:
                 self._show_status('Backup restored successfully')
-                # Reload config to apply changes
-                self.config.load()
-                self._sync_controls_from_config()
+                self._apply_config_change()
             else:
                 self._show_status('Failed to restore backup')
         else:
