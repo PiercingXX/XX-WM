@@ -73,7 +73,8 @@ class PiercingShellApplication(Adw.Application):
         self._shell._back_layer = back
 
     def _on_notification(
-        self, notif_id: int, app_name: str, summary: str, body: str, desktop_entry: str
+        self, notif_id: int, app_name: str, summary: str, body: str,
+        desktop_entry: str, hints: dict,
     ) -> None:
         _log.debug('notification %d from %s: %s', notif_id, app_name, summary)
         if self._shell is None:
@@ -85,6 +86,21 @@ class PiercingShellApplication(Adw.Application):
                                    or config.is_app_muted(app_name)):
             _log.debug('notification %d dropped: %s is muted', notif_id, desktop_entry or app_name)
             return
+
+        category = str(hints.get('category', ''))
+        urgency = hints.get('urgency', 1)
+        is_alarm = category.startswith('alarm') or urgency == 2
+
+        # DnD: notifications still collect in the shade, but silently —
+        # no sound. Alarms are always exempt.
+        dnd = getattr(self._shell, 'dnd_state', None)
+        dnd_silenced = dnd is not None and dnd.is_active() and not is_alarm
+
+        if (config is not None and config.sound_notifications
+                and not dnd_silenced and not hints.get('suppress-sound')):
+            import sound
+            sound.play('notify.wav')
+
         shade = getattr(self._shell, '_shade', None)
         if shade is not None:
             shade.add_notification(notif_id, app_name, summary, body, desktop_entry)

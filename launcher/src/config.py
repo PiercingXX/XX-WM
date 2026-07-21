@@ -76,6 +76,11 @@ DEFAULT_CONFIG = {
     'default_layout_applied': False,
     'app_labels': {},
     'muted_apps': {},
+    'dnd_enabled': False,
+    'dnd_schedules': [],
+    'dnd_starred_numbers': [],
+    'sound_ringtone': True,
+    'sound_notifications': True,
     'widgets': {
         'time': {'enabled': True, 'order': 1, 'tap': 'default'},
         'date': {'enabled': True, 'order': 2, 'tap': 'default'},
@@ -338,6 +343,14 @@ class ShellConfig:
             until > now and self._norm_app_id(key).casefold() == wanted
             for key, until in self.muted_apps.items()
         )
+
+    @property
+    def sound_ringtone(self) -> bool:
+        return bool(self.data.get('sound_ringtone', True))
+
+    @property
+    def sound_notifications(self) -> bool:
+        return bool(self.data.get('sound_notifications', True))
 
     @property
     def search_auto_launch(self) -> bool:

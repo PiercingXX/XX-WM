@@ -79,11 +79,11 @@ Match the backup scope in `design.md` "Backup / restore":
 
 Assets already in `launcher/data/sounds/` (ringtone.mp3, notify.wav, comm-on.wav, alert.wav).
 
-- [ ] **7.1 Meson install** — `install_data` the four files to `datadir/piercing-shell/sounds/`.
-- [ ] **7.2 Player helper** — `launcher/src/sound.py`: resolve sound dir (installed path, fall back to repo-relative for dev runs); `play(name, loop=False)` / `stop()` via `paplay` subprocess (PipeWire's pactl frontend ships it everywhere we target); loop = respawn on exit from a daemon thread until stopped. Silent no-op if `paplay` is missing.
-- [ ] **7.3 Wire ringtone** — `call_ui.py`: loop `ringtone.mp3` on `show_incoming()`, stop on accept/decline/`end_call()`/remote hangup (all `StateChanged` paths in `modem_monitor.py` flow through `window.py._on_call_*` — stop in every terminal path).
-- [ ] **7.4 Wire notification sound** — `notif_daemon.py`: play `notify.wav` on `Notify` unless the shade's DnD tile is active (read the DnD state from `quick_actions.py` — it's currently a stub tile; give it a real boolean the daemon can query) or the notification carries the `suppress-sound` hint.
-- [ ] **7.5 Config toggles** — Settings switches: `sound_ringtone` (default on), `sound_notifications` (default on).
+- [x] **7.1 Meson install** — `install_data` the four files to `datadir/piercing-shell/sounds/`.
+- [x] **7.2 Player helper** — `launcher/src/sound.py`: resolve sound dir (installed path, fall back to repo-relative for dev runs); `play(name, loop=False)` / `stop()` via `paplay` subprocess (PipeWire's pactl frontend ships it everywhere we target); loop = respawn on exit from a daemon thread until stopped. Silent no-op if `paplay` is missing.
+- [x] **7.3 Wire ringtone** — `call_ui.py`: loop `ringtone.mp3` on `show_incoming()`, stop on accept/decline/`end_call()`/remote hangup (all `StateChanged` paths in `modem_monitor.py` flow through `window.py._on_call_*` — stop in every terminal path).
+- [x] **7.4 Wire notification sound** — `notif_daemon.py`: play `notify.wav` on `Notify` unless the shade's DnD tile is active (read the DnD state from `quick_actions.py` — it's currently a stub tile; give it a real boolean the daemon can query) or the notification carries the `suppress-sound` hint.
+- [x] **7.5 Config toggles** — `sound_ringtone` / `sound_notifications` config bools (default on); GUI rows superseded by Workstream 15 (config-first).
 
 ## Workstream 8 — Gesture polish
 
@@ -130,12 +130,12 @@ Spec: `design.md` "Notification shade & quick settings". Current shade has tiles
 
 Spec: `design.md` "Do Not Disturb". The `dnd` tile in `quick_actions.py` is currently a no-op — this workstream gives it a real backend. Land together with Workstream 7 (7.4 needs this state).
 
-- [ ] **13.1 State module** — `launcher/src/dnd.py`: config-backed `dnd_enabled`, `dnd_schedules` (list of `{days: [0-6], start: 'HH:MM', end: 'HH:MM'}`), `dnd_starred_numbers` (list). `is_active(now)` = manual toggle OR any schedule matches. Repeat-caller tracking: `note_call(number, when)` + `is_exception(number, when)` — same normalized number twice within 15 min, or number in starred list. Alarms always exempt by category hint.
-- [ ] **13.2 Notification enforcement** — `notif_daemon.py`: while active, no banner, no sound (7.4 hook); notifications still collect in the shade. Honor the alarm/urgency exemption.
-- [ ] **13.3 Call enforcement** — `window.py`/`call_ui.py` incoming-call path: while active, only exceptions ring (13.1); non-exceptions show silently in the call UI (no ringtone loop — coordinates with 7.3).
-- [ ] **13.4 Starred contacts** — `contacts.py` has no favorites yet: add a starred flag (long-press a contact row → Star/Unstar) persisted to `dnd_starred_numbers` via normalized number match.
-- [ ] **13.5 Tile wiring** — `quick_actions.py` `dnd` tile: real get/set against 13.1; tile shows active state including schedule-driven activation.
-- [ ] **13.6 Tests** — schedule matching (overnight ranges crossing midnight, day wrap), repeat-caller window, starred matching with formatting variants (`+1…` vs bare).
+- [x] **13.1 State module** — `launcher/src/dnd.py`: config-backed `dnd_enabled`, `dnd_schedules` (list of `{days: [0-6], start: 'HH:MM', end: 'HH:MM'}`), `dnd_starred_numbers` (list). `is_active(now)` = manual toggle OR any schedule matches. Repeat-caller tracking: `note_call(number, when)` + `is_exception(number, when)` — same normalized number twice within 15 min, or number in starred list. Alarms always exempt by category hint.
+- [x] **13.2 Notification enforcement** — `notif_daemon.py`: while active, no banner, no sound (7.4 hook); notifications still collect in the shade. Honor the alarm/urgency exemption.
+- [x] **13.3 Call enforcement** — `window.py`/`call_ui.py` incoming-call path: while active, only exceptions ring (13.1); non-exceptions show silently in the call UI (no ringtone loop — coordinates with 7.3).
+- [x] **13.4 Starred contacts** — `contacts.py` has no favorites yet: add a starred flag (long-press a contact row → Star/Unstar) persisted to `dnd_starred_numbers` via normalized number match.
+- [x] **13.5 Tile wiring** — `quick_actions.py` `dnd` tile: real get/set against 13.1; tile shows active state including schedule-driven activation.
+- [x] **13.6 Tests** — schedule matching (overnight ranges crossing midnight, day wrap), repeat-caller window, starred matching with formatting variants (`+1…` vs bare).
 
 ## Workstream 14 — Focus Mode (Pixel model)
 

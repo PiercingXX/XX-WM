@@ -69,13 +69,15 @@ _REASON_CLOSED = 3
 class NotificationDaemon:
     """
     Owns org.freedesktop.Notifications on the session bus.
-    Fires on_notify(id, app_name, summary, body, desktop_entry) for each Notify call.
+    Fires on_notify(id, app_name, summary, body, desktop_entry, hints) for each
+    Notify call — hints carries the raw a{sv} dict (category, urgency,
+    suppress-sound) so DnD and sound policy can be applied downstream.
     Fires on_close(id) when CloseNotification is called or auto-expire fires.
     """
 
     def __init__(
         self,
-        on_notify: Callable[[int, str, str, str, str], None],
+        on_notify: Callable[[int, str, str, str, str, dict], None],
         on_close: Callable[[int], None] | None = None,
     ) -> None:
         self._on_notify = on_notify
@@ -176,7 +178,8 @@ class NotificationDaemon:
         if notif_id in self._expire_timers:
             GLib.source_remove(self._expire_timers.pop(notif_id))
 
-        GLib.idle_add(self._on_notify, notif_id, app_name, summary, body, desktop_entry)
+        GLib.idle_add(self._on_notify, notif_id, app_name, summary, body, desktop_entry,
+                      hints if isinstance(hints, dict) else {})
 
         if expire_timeout > 0:
             timer_id = GLib.timeout_add(

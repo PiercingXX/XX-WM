@@ -229,10 +229,11 @@ class QuickActionsPanel(Gtk.Box):
     Embed in NotificationShade. Call expand(True/False) to show tier-2 + sliders.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, dnd_state: object | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.add_css_class('qa-panel')
 
+        self._dnd = dnd_state
         self._tile_buttons: dict[str, Gtk.ToggleButton] = {}
         self._tile_state: dict[str, bool] = {}
         self._state_labels: dict[str, Gtk.Label] = {}
@@ -250,9 +251,21 @@ class QuickActionsPanel(Gtk.Box):
         self._build()
         GLib.idle_add(self._refresh_all_states)
 
+    def _tiles(self) -> list[_TileDef]:
+        tiles = []
+        for tile in _TILES:
+            if tile.key == 'dnd' and self._dnd is not None:
+                tile = tile._replace(
+                    get_state=lambda: bool(self._dnd.is_active()),
+                    set_state=lambda v: self._dnd.set_enabled(v),
+                )
+            tiles.append(tile)
+        return tiles
+
     def _build(self) -> None:
-        tier1 = [t for t in _TILES if t.tier == 1]
-        tier2 = [t for t in _TILES if t.tier == 2]
+        tiles = self._tiles()
+        tier1 = [t for t in tiles if t.tier == 1]
+        tier2 = [t for t in tiles if t.tier == 2]
 
         self.tier1_grid = Gtk.Grid(row_spacing=8, column_spacing=8)
         for col, tile in enumerate(tier1):
@@ -349,7 +362,7 @@ class QuickActionsPanel(Gtk.Box):
                 self._bright_slider.set_sensitive(True)
 
     def _refresh_all_states(self) -> bool:
-        for tile in _TILES:
+        for tile in self._tiles():
             try:
                 state = tile.get_state()
             except Exception:

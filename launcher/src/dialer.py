@@ -81,12 +81,13 @@ _KEYPAD: list[tuple[str, str]] = [
 class Dialer(Gtk.Window):
     """Standalone dialer window — numeric keypad + contact search + call via ModemManager."""
 
-    def __init__(self) -> None:
+    def __init__(self, dnd_state: object | None = None) -> None:
         super().__init__(title='Dialer')
         self.set_default_size(420, 860)
 
         self._digits = ''
         self._contact_book = ContactBook()
+        self._dnd = dnd_state
 
         provider = Gtk.CssProvider()
         provider.load_from_data(_DIALER_CSS)
@@ -245,7 +246,8 @@ class Dialer(Gtk.Window):
         self._suggestions.set_visible(True)
 
     def _make_suggestion_row(self, contact: Contact) -> Gtk.ListBoxRow:
-        name_lbl = Gtk.Label(label=contact.name, xalign=0)
+        starred = self._dnd is not None and self._dnd.is_starred(contact.primary_number())
+        name_lbl = Gtk.Label(label=('★ ' if starred else '') + contact.name, xalign=0)
         name_lbl.add_css_class('contact-name')
 
         num_lbl = Gtk.Label(label=contact.primary_number(), xalign=0)
@@ -260,6 +262,18 @@ class Dialer(Gtk.Window):
         row.add_css_class('contact-row')
         row.set_child(inner)
         row.connect('activate', lambda _r, c=contact: self._fill_from_contact(c))
+        if self._dnd is not None:
+            # Long-press → star/unstar: starred contacts ring through DnD
+            def _toggle_star(gesture: Gtk.GestureLongPress, _x: float, _y: float,
+                             c: Contact = contact, was_starred: bool = starred) -> None:
+                gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+                self._dnd.set_starred(c.primary_number(), not was_starred)
+                self._refresh_suggestions()
+
+            long_press = Gtk.GestureLongPress.new()
+            long_press.set_touch_only(False)
+            long_press.connect('pressed', _toggle_star)
+            row.add_controller(long_press)
         return row
 
     def _fill_from_contact(self, contact: Contact) -> None:

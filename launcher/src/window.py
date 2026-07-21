@@ -47,6 +47,8 @@ class ShellWindow(Adw.ApplicationWindow):
 
         self.config = ShellConfig()
         self.gesture_config = GestureConfig()
+        from dnd import DndState
+        self.dnd_state = DndState(self.config)
         self.app_index = AppIndex()
         self.app_index.refresh()
 
@@ -372,7 +374,7 @@ class ShellWindow(Adw.ApplicationWindow):
         from dialer import Dialer
         if self._dialer and self._dialer.get_visible():
             return
-        d = Dialer()
+        d = Dialer(dnd_state=self.dnd_state)
         d.set_application(self.get_application())
         d.present()
         self._dialer = d
@@ -472,7 +474,7 @@ class ShellWindow(Adw.ApplicationWindow):
     def _ensure_shade(self) -> object:
         if self._shade is None:
             from notification_shade import NotificationShade
-            self._shade = NotificationShade()
+            self._shade = NotificationShade(dnd_state=self.dnd_state)
             self._shade.set_application(self.get_application())
         return self._shade
 
@@ -1220,15 +1222,25 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _on_call_incoming(self, caller: str, number: str) -> None:
         from call_ui import CallUI, CallBar
+        import sound
         if self._call_ui is None:
-            self._call_ui = CallUI()
+            self._call_ui = CallUI(on_accept=sound.stop, on_decline=sound.stop)
             self._call_ui.set_application(self.get_application())
         if self._call_bar is None:
             self._call_bar = CallBar()
             self._call_bar.set_application(self.get_application())
+        # DnD: only exceptions (starred, repeat caller) ring; everyone else
+        # shows silently in the call UI. Exception check runs before this
+        # call is recorded so the 15-minute repeat window looks at prior calls.
+        rings = not self.dnd_state.is_active() or self.dnd_state.is_exception(number)
+        self.dnd_state.note_call(number)
+        if rings and self.config.sound_ringtone:
+            sound.play('ringtone.mp3', loop=True)
         self._call_ui.show_incoming(caller or 'Incoming call', number)
 
     def _on_call_answered(self, caller: str, number: str) -> None:
+        import sound
+        sound.stop()
         if self._call_ui is None:
             return
         self._call_ui.show_active(caller or 'Active call', number)
@@ -1236,6 +1248,8 @@ class ShellWindow(Adw.ApplicationWindow):
             self._call_bar.show_bar(caller or number)
 
     def _on_call_ended(self) -> None:
+        import sound
+        sound.stop()
         if self._call_ui is not None:
             self._call_ui.end_call()
         if self._call_bar is not None:

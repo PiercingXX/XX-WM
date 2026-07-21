@@ -45,6 +45,9 @@ python.install_sources(
     'src/display_manager.py',
     'src/power_menu.py',
     'src/back_gesture.py',
+    'src/app_item_actions.py',
+    'src/dnd.py',
+    'src/sound.py',
   ],
   subdir: shell_subdir,
 )
@@ -57,6 +60,14 @@ install_data(
 install_data(
   'data/phoc.ini',
   install_dir: shell_datadir,
+)
+
+install_data(
+  'data/sounds/ringtone.mp3',
+  'data/sounds/notify.wav',
+  'data/sounds/comm-on.wav',
+  'data/sounds/alert.wav',
+  install_dir: join_paths(shell_datadir, 'sounds'),
 )
 
 # Shell Python launcher (runs main.py) → $prefix/bin/piercing-shell

@@ -94,8 +94,9 @@ class Notification:
 
 
 class NotificationShade(Gtk.Window):
-    def __init__(self) -> None:
+    def __init__(self, dnd_state: object | None = None) -> None:
         super().__init__(title='PiercingOS Shade')
+        self._dnd = dnd_state
 
         if _LAYER_SHELL and LayerShell.is_supported():
             LayerShell.init_for_window(self)
@@ -120,7 +121,7 @@ class NotificationShade(Gtk.Window):
 
         self.list_box = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.list_box.add_css_class('text-list')
-        self.quick_actions = QuickActionsPanel()
+        self.quick_actions = QuickActionsPanel(dnd_state=dnd_state)
 
         self._revealer = Gtk.Revealer(
             transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
