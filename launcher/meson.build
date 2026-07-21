@@ -16,7 +16,13 @@ datadir_abs  = join_paths(prefix, get_option('datadir'))
 shell_subdir = 'piercing-shell'
 shell_datadir = join_paths(get_option('datadir'), shell_subdir)
 
-python.install_sources(
+# The shell is a flat set of modules, not an installable package: it uses
+# plain imports (`from window import ...`) and finds sibling assets via
+# Path(__file__).with_name(). So every .py must land in the SAME directory
+# as style.css (shell_datadir) and run as `python3 <shell_datadir>/main.py`,
+# which puts that directory on sys.path. Installing to site-packages breaks
+# both the flat imports and the asset lookups.
+install_data(
   [
     'src/main.py',
     'src/window.py',
@@ -54,7 +60,7 @@ python.install_sources(
     'src/system_settings.py',
     'src/weather.py',
   ],
-  subdir: shell_subdir,
+  install_dir: shell_datadir,
 )
 
 install_data(
