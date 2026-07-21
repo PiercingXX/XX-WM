@@ -13,14 +13,19 @@ except Exception:
 
 if [ "$_prefer_dark" = "1" ]; then
     export ADWAITA_COLOR_SCHEME=prefer-dark
-    export GTK_THEME=Adw-dark
+    # GTK3 clients (squeekboard) need a real GTK3 theme name — 'Adw-dark'
+    # does not exist for them and silently falls back to light Adwaita
+    export GTK_THEME=Adwaita:dark
 else
     export ADWAITA_COLOR_SCHEME=prefer-light
-    export GTK_THEME=Adw
+    export GTK_THEME=Adwaita
 fi
 
 # Ensure Space Mono and JetBrains Mono are on the font path if installed into the overlay
 export FONTCONFIG_PATH="@datadir@/piercing-shell/fonts:${FONTCONFIG_PATH:-/etc/fonts}"
+
+# Marks the real session — enables session-only behavior (app preloading)
+export PIERCING_SESSION=1
 
 exec phoc \
   -C @datadir@/piercing-shell/phoc.ini \

@@ -61,6 +61,12 @@ class PiercingShellApplication(Adw.Application):
         self._shell.present()
         _log.info('shell window presented')
 
+        # Warm swipe-bound apps in the real session only — under a host
+        # shell (dev runs over Phosh) the preloads would grab the screen
+        import os
+        if os.environ.get('PIERCING_SESSION'):
+            GLib.timeout_add_seconds(8, self._preload_gesture_apps)
+
         # Display power management: power button + fingerprint wake the screen.
         # Must be started after shell window exists so on_wake can show lock screen.
         from display_manager import DisplayManager, _take_screenshot
@@ -173,13 +179,23 @@ class PiercingShellApplication(Adw.Application):
             if back:
                 GLib.idle_add(back.flash_back, True)
         elif command == 'gesture.home':
-            GLib.idle_add(self._shell.stack.set_visible_child_name, 'home')
+            def _go_home() -> None:
+                if self._shell:
+                    self._shell.stack.set_visible_child_name('home')
+                    # Hop above the focused app; drops back on next launch
+                    self._shell.present_over_apps()
+            GLib.idle_add(_go_home)
         elif command == 'gesture.shade':
             GLib.idle_add(lambda: self._shell._show_shade() if self._shell else None)
         elif command == 'gesture.switcher':
             GLib.idle_add(lambda: self._shell._show_switcher() if self._shell else None)
         elif command == 'welcome':
             GLib.idle_add(self._show_welcome_tour)
+
+    def _preload_gesture_apps(self) -> bool:
+        if self._shell:
+            self._shell.preload_gesture_apps()
+        return GLib.SOURCE_REMOVE
 
     def _on_sleep(self, sleeping: bool) -> None:
         if sleeping and self._shell:

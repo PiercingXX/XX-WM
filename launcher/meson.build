@@ -104,10 +104,21 @@ install_data(
 launcher_conf = configuration_data()
 launcher_conf.set('python', python.full_path())
 launcher_conf.set('shell_dir', join_paths(prefix, shell_datadir))
+launcher_conf.set('bindir', bindir)
 
 configure_file(
   input: 'data/piercing-shell.in',
   output: 'piercing-shell',
+  configuration: launcher_conf,
+  install: true,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x',
+)
+
+# IPC client (lisgd bindings, wake hooks) → $prefix/bin/piercing-ipc
+configure_file(
+  input: 'data/piercing-ipc.in',
+  output: 'piercing-ipc',
   configuration: launcher_conf,
   install: true,
   install_dir: get_option('bindir'),

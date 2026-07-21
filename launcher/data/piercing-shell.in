@@ -6,4 +6,26 @@
 if command -v squeekboard >/dev/null 2>&1; then
     squeekboard &
 fi
+
+# System-level gestures: lisgd reads the touchscreen evdev directly, so edge
+# swipes work while any app is focused — each binding feeds the shell IPC.
+# Override autodetection with PIERCING_TOUCH_DEV=/dev/input/eventN.
+if command -v lisgd >/dev/null 2>&1; then
+    _touch_dev=${PIERCING_TOUCH_DEV:-$(awk '
+        /^N:/ { name = tolower($0) }
+        /^H:/ && name ~ /touch/ {
+            for (i = 1; i <= NF; i++)
+                if ($i ~ /^event/) { print "/dev/input/" $i; exit }
+        }' /proc/bus/input/devices)}
+    if [ -n "$_touch_dev" ] && [ -r "$_touch_dev" ]; then
+        lisgd -d "$_touch_dev" \
+            -g "1,DU,B,*,R,@bindir@/piercing-ipc gesture.home" \
+            -g "1,UD,T,*,R,@bindir@/piercing-ipc gesture.shade" \
+            -g "1,LR,L,*,R,@bindir@/piercing-ipc gesture.back" \
+            -g "1,RL,R,*,R,@bindir@/piercing-ipc gesture.back" &
+    else
+        echo "piercing-shell: no readable touchscreen for lisgd" >&2
+    fi
+fi
+
 exec @python@ @shell_dir@/main.py "$@"
