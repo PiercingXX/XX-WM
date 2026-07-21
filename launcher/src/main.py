@@ -78,6 +78,13 @@ class PiercingShellApplication(Adw.Application):
         _log.debug('notification %d from %s: %s', notif_id, app_name, summary)
         if self._shell is None:
             return
+        # "Disable for…" mute: notifications from a muted app are discarded
+        # outright until the deadline passes
+        config = getattr(self._shell, 'config', None)
+        if config is not None and (config.is_app_muted(desktop_entry)
+                                   or config.is_app_muted(app_name)):
+            _log.debug('notification %d dropped: %s is muted', notif_id, desktop_entry or app_name)
+            return
         shade = getattr(self._shell, '_shade', None)
         if shade is not None:
             shade.add_notification(notif_id, app_name, summary, body, desktop_entry)

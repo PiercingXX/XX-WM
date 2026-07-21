@@ -38,6 +38,13 @@ python.install_sources(
     'src/config.py',
     'src/contacts.py',
     'src/als_brightness.py',
+    'src/home_launcher.py',
+    'src/default_layout.py',
+    'src/backup.py',
+    'src/update_checker.py',
+    'src/display_manager.py',
+    'src/power_menu.py',
+    'src/back_gesture.py',
   ],
   subdir: shell_subdir,
 )

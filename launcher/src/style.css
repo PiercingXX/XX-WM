@@ -23,12 +23,12 @@ window.piercing-shell paned {
 }
 
 .display-clock {
-  font-size: 52pt;
+  font-size: 42pt;
   font-weight: 300;
 }
 
 .display-date {
-  font-size: 14pt;
+  font-size: 11pt;
   margin-bottom: 4px;
 }
 
@@ -84,7 +84,7 @@ entry {
 }
 
 .app-name {
-  font-size: 16pt;
+  font-size: 13pt;
   font-weight: 400;
 }
 

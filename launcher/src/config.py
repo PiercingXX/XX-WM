@@ -20,34 +20,67 @@ class ThemePreset:
     accent: str
 
 
+# Canonical theme presets per design.md spec
+# Dark themes (background, surface, surface_alt, border) derived from background
+# Light themes use near-black text on light backgrounds
+def _derive_shades(bg: str) -> tuple[str, str, str]:
+    """Derive surface/surface_alt/border shades from background color."""
+    # Simple approach: darken by ~10% for surface, ~15% for surface_alt, ~30% for border
+    # Parse hex and adjust
+    import re
+    match = re.match(r'#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})', bg)
+    if not match:
+        return ('#111111', '#181818', '#2f2f2f')
+    r = int(match.group(1), 16)
+    
+    def darken(val: int, pct: float) -> str:
+        v = max(0, val - int(255 * pct))
+        return f'#{v:02x}{v:02x}{v:02x}'
+    
+    return (darken(r, 0.10), darken(r, 0.15), darken(r, 0.30))
+
 THEME_PRESETS = {
     'amoled': ThemePreset('amoled', 'AMOLED', '#000000', '#111111', '#181818', '#2f2f2f', '#f4f4f4', '#9a9a9a', '#d8d8d8'),
-    'graphite': ThemePreset('graphite', 'Graphite', '#141414', '#1d1d1d', '#242424', '#343434', '#f0f0f0', '#a0a0a0', '#d2d2d2'),
-    'forest': ThemePreset('forest', 'Forest', '#101612', '#172019', '#1e2922', '#314036', '#ecf4ee', '#a4b1a7', '#c9d8cc'),
-    'ocean': ThemePreset('ocean', 'Ocean', '#10161a', '#182129', '#1f2a34', '#32404c', '#edf4f7', '#9fb0bb', '#cad8df'),
-    'paper': ThemePreset('paper', 'Paper', '#f4f1ea', '#ede6db', '#e4dccf', '#d0c4b2', '#151515', '#585147', '#262626'),
-    'mist': ThemePreset('mist', 'Mist', '#e8ecef', '#dce2e6', '#d1d8de', '#bcc6cd', '#151a1f', '#55606c', '#2f3943'),
+    'graphite': ThemePreset('graphite', 'Graphite', '#111827', '#1f2937', '#2d3748', '#4a5568', '#f7fafc', '#a0aec0', '#718096'),
+    'forest': ThemePreset('forest', 'Forest', '#10261B', '#1a3a2a', '#244e3a', '#3d6b56', '#ecf4ee', '#a4b1a7', '#c9d8cc'),
+    'ocean': ThemePreset('ocean', 'Ocean', '#0F1C2E', '#182a42', '#203856', '#34506e', '#edf4f7', '#9fb0bb', '#cad8df'),
+    'paper': ThemePreset('paper', 'Paper', '#F3EEE2', '#e0d8cb', '#ccc4b4', '#b09c85', '#151515', '#585147', '#262626'),
+    'mist': ThemePreset('mist', 'Mist', '#E6EDF5', '#d0d8e2', '#bac4cf', '#9aa8ba', '#151a1f', '#55606c', '#2f3943'),
     'aura': ThemePreset('aura', 'Aura', '#0d0b14', '#14112a', '#1e1a3a', '#3d3066', '#f0eeff', '#9080c0', '#a855f7'),
 }
+
+# Burgundy - extra named custom-color suggestion (not a preset)
+BURGUNDY_COLOR = '#2A1018'
 
 FONT_FAMILIES = {
     'system-light': 'Sans Light',
     'space-mono': 'Space Mono, Monospace',
     'jetbrains-mono': 'JetBrains Mono, Monospace',
+    'jetbrains-mono-nerd': 'JetBrainsMono Nerd Font, JetBrains Mono, Monospace',
 }
 
 DEFAULT_CONFIG = {
-    'theme': 'graphite',
-    'font': 'space-mono',
+    'theme': 'amoled',
+    'font': 'jetbrains-mono-nerd',
     'pinned': [],
     'hidden_apps': [],
     'prefer_dark': True,
     'auto_lock_timeout': 120,
     'text_size_scale': 1.0,
-    'home_alignment': 'left',
+    'home_alignment': 'center',
     'update_script': '~/.scripts/PiercingXX-Settings-Menu/update-system.sh',
     'update_last_check': 0.0,
     'update_snooze_until': 0.0,
+    'home_slots': [],
+    'default_layout_applied': False,
+    'app_labels': {},
+    'muted_apps': {},
+    'widgets': {
+        'time': {'enabled': True, 'order': 1, 'tap': 'default'},
+        'date': {'enabled': True, 'order': 2, 'tap': 'default'},
+        'weather': {'enabled': True, 'order': 3, 'tap': 'refresh'},
+        'battery': {'enabled': True, 'order': 4, 'tap': 'default'},
+    },
 }
 
 
@@ -166,8 +199,8 @@ class ShellConfig:
 
     @property
     def home_alignment(self) -> str:
-        val = str(self.data.get('home_alignment', 'left'))
-        return val if val in ('left', 'center', 'right') else 'left'
+        val = str(self.data.get('home_alignment', 'center'))
+        return val if val in ('left', 'center', 'right') else 'center'
 
     def set_home_alignment(self, alignment: str) -> None:
         if alignment in ('left', 'center', 'right'):
@@ -213,3 +246,100 @@ class ShellConfig:
         counts[app_id] = counts.get(app_id, 0) + 1
         self.data['launch_counts'] = counts
         self.save()
+
+    @property
+    def default_layout_applied(self) -> bool:
+        return bool(self.data.get('default_layout_applied', False))
+
+    def set_default_layout_applied(self, value: bool) -> None:
+        self.data['default_layout_applied'] = bool(value)
+        self.save()
+
+    @property
+    def home_slots(self) -> list[dict]:
+        slots = self.data.get('home_slots', DEFAULT_CONFIG['home_slots'])
+        if isinstance(slots, list):
+            return slots
+        return []
+
+    def set_home_slots(self, slots: list[dict]) -> None:
+        validated = []
+        for slot in slots[:8]:
+            if not isinstance(slot, dict):
+                continue
+            slot_type = slot.get('type')
+            if slot_type not in ('app', 'folder'):
+                continue
+            validated.append({
+                'type': slot_type,
+                'label': str(slot.get('label', '')),
+                'app_id': str(slot.get('app_id')) if slot.get('app_id') else None,
+                'cmd': slot.get('cmd') if isinstance(slot.get('cmd'), list) else None,
+                'folder': slot.get('folder') if isinstance(slot.get('folder'), list) else None,
+            })
+        self.data['home_slots'] = validated
+        self.save()
+    @property
+    def app_labels(self) -> dict[str, str]:
+        val = self.data.get('app_labels', {})
+        if isinstance(val, dict):
+            return {str(k): str(v) for k, v in val.items()}
+        return {}
+
+    def set_app_label(self, app_id: str, label: str | None) -> None:
+        labels = self.app_labels
+        if label:
+            labels[app_id] = label
+        else:
+            labels.pop(app_id, None)
+        self.data['app_labels'] = labels
+        self.save()
+
+    def label_for(self, app_id: str, fallback: str) -> str:
+        return self.app_labels.get(app_id, fallback)
+
+    @property
+    def muted_apps(self) -> dict[str, float]:
+        val = self.data.get('muted_apps', {})
+        if not isinstance(val, dict):
+            return {}
+        out: dict[str, float] = {}
+        for k, v in val.items():
+            try:
+                out[str(k)] = float(v)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    def set_app_muted(self, app_id: str, until_epoch: float, now: float | None = None) -> None:
+        if now is None:
+            import time
+            now = time.time()
+        muted = {k: v for k, v in self.muted_apps.items() if v > now}
+        muted[app_id] = float(until_epoch)
+        self.data['muted_apps'] = muted
+        self.save()
+
+    def is_app_muted(self, app_id: str, now: float | None = None) -> bool:
+        if not app_id:
+            return False
+        if now is None:
+            import time
+            now = time.time()
+        return self.muted_apps.get(app_id, 0.0) > now
+
+    @property
+    def custom_background(self) -> str | None:
+        val = self.data.get('custom_background')
+        return str(val) if val else None
+
+    def set_custom_background(self, color: str) -> bool:
+        """Set custom background color. Returns True if valid."""
+        import re
+        if not re.match(r'^#[0-9a-fA-F]{6}$', color):
+            return False
+        self.data['theme'] = 'custom'
+        self.data['custom_background'] = color
+        self.save()
+        return True
+

@@ -14,8 +14,8 @@ _DEFAULTS: dict[str, str] = {
     'long_press_bottom':     'search',
     'double_tap_home':       'lock_screen',
     'long_press_home':       'settings',
-    'swipe_left_home':       'camera',
-    'swipe_right_home':      'dialer',
+    'swipe_left_home':       'none',
+    'swipe_right_home':      'camera',
     'squeeze':               'assistant',
     'fingerprint_swipe':     'notification_shade',
     'double_press_power':    'camera',
@@ -26,6 +26,13 @@ VALID_ACTIONS: frozenset[str] = frozenset({
     'search', 'lock_screen', 'settings', 'camera', 'dialer',
     'assistant', 'none',
 })
+
+
+def is_valid_action(action: str) -> bool:
+    """Fixed actions plus 'launch:<app_id>' bindings for arbitrary apps."""
+    if action in VALID_ACTIONS:
+        return True
+    return action.startswith('launch:') and len(action) > len('launch:')
 
 # Human-readable names for the settings UI
 ACTION_LABELS: dict[str, str] = {
@@ -73,7 +80,7 @@ class GestureConfig:
         if not isinstance(raw, dict):
             return
         for key, action in raw.items():
-            if key in _DEFAULTS and action in VALID_ACTIONS:
+            if key in _DEFAULTS and isinstance(action, str) and is_valid_action(action):
                 self._map[key] = action
 
     def save(self) -> None:
@@ -86,7 +93,7 @@ class GestureConfig:
     def set(self, gesture: str, action: str) -> None:
         if gesture not in _DEFAULTS:
             raise ValueError(f'Unknown gesture: {gesture}')
-        if action not in VALID_ACTIONS:
+        if not is_valid_action(action):
             raise ValueError(f'Unknown action: {action}')
         self._map[gesture] = action
         self.save()

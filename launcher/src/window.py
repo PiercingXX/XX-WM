@@ -47,6 +47,12 @@ class ShellWindow(Adw.ApplicationWindow):
         self.app_index = AppIndex()
         self.app_index.refresh()
 
+        try:
+            from default_layout import apply_default_layout
+            apply_default_layout(self.config, self.gesture_config)
+        except Exception:
+            pass  # first-boot seeding must never block the shell
+
         self._edit_mode = False
         self._idle_timer_id: int | None = None
         self._call_ui: object | None = None
@@ -88,7 +94,7 @@ class ShellWindow(Adw.ApplicationWindow):
         self.theme_dropdown = Gtk.DropDown.new_from_strings([preset.name for preset in THEME_PRESETS.values()])
         self.theme_dropdown.connect('notify::selected', self._on_theme_changed)
 
-        self.font_dropdown = Gtk.DropDown.new_from_strings(['Sans Light', 'Space Mono', 'JetBrains Mono'])
+        self.font_dropdown = Gtk.DropDown.new_from_strings(['Sans Light', 'Space Mono', 'JetBrains Mono', 'JetBrains Mono Nerd'])
         self.font_dropdown.connect('notify::selected', self._on_font_changed)
 
         self.dark_mode_switch = Gtk.Switch(active=self.config.prefer_dark)
@@ -193,6 +199,11 @@ class ShellWindow(Adw.ApplicationWindow):
         return root
 
     def _on_stack_swipe(self, _gesture: Gtk.GestureSwipe, vel_x: float, vel_y: float) -> None:
+        # Any gesture dismisses an open in-place folder view
+        launcher = getattr(self, '_home_launcher', None)
+        if launcher is not None and launcher.close_folder():
+            self._swipe_navigated = True
+            return
         # Vertical swipes: shade (down) or switcher (up)
         if abs(vel_y) > abs(vel_x) * 1.5:
             self._swipe_navigated = True
@@ -257,25 +268,40 @@ class ShellWindow(Adw.ApplicationWindow):
         self._clock_tap_timer: int | None = None
         self.clock_label.add_controller(double_tap)
 
+        # Widget order per design.md: time, date, (weather — WS 5.4), battery
         clock_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         clock_inner.set_halign(Gtk.Align.FILL)
         clock_inner.set_hexpand(True)
-        clock_inner.append(self.status_strip)
         clock_inner.append(self.clock_label)
         clock_inner.append(self.date_label)
+        clock_inner.append(self.status_strip)
+        self._widget_block = clock_inner
 
         # Equal spacers above and below clock_inner → vertically centered in top pane
         top_pane = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         top_pane.set_hexpand(True)
         top_pane.set_vexpand(True)
-        sp_top = Gtk.Box(); sp_top.set_vexpand(True)
-        sp_bot = Gtk.Box(); sp_bot.set_vexpand(True)
+        sp_top = Gtk.Box()
+        sp_top.set_vexpand(True)
+        sp_bot = Gtk.Box()
+        sp_bot.set_vexpand(True)
         top_pane.append(sp_top)
         top_pane.append(clock_inner)
         top_pane.append(sp_bot)
 
         # --- Bottom 2/3: launcher — vertically centered ---
-        self._home_launcher = HomeLauncher(open_dialer_fn=self._open_dialer)
+        def _get_home_slots() -> list[dict]:
+            return self.config.home_slots
+
+        def _launch_slot(slot: dict) -> None:
+            self._launch_slot(slot)
+
+        self._home_launcher = HomeLauncher(
+            open_dialer_fn=self._open_dialer,
+            get_slots_fn=_get_home_slots,
+            on_launch_slot=_launch_slot,
+            on_folder_toggled=self._on_folder_toggled,
+        )
 
         launcher_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         launcher_inner.set_valign(Gtk.Align.CENTER)
@@ -309,17 +335,26 @@ class ShellWindow(Adw.ApplicationWindow):
 
         # Set divider at 1/3 once the widget is realized and allocated.
         # GTK4 removed size-allocate as a connectable signal; use realize + idle_add.
+        # The widget block gets margin_top = h/6 so its center sits on the 1/4
+        # line of the screen ((h/3 + h/6) / 2); the slot list stays centered in
+        # the bottom pane, i.e. on the 2/3 line.
         def _set_ratio_once(w: Gtk.Paned) -> None:
             def _apply() -> bool:
                 h = w.get_height()
                 if h > 0:
                     w.set_position(h // 3)
+                    clock_inner.set_margin_top(h // 6)
                     return GLib.SOURCE_REMOVE
                 return GLib.SOURCE_CONTINUE   # retry next idle
             GLib.idle_add(_apply)
         paned.connect('realize', _set_ratio_once)
 
         return paned
+
+    def _on_folder_toggled(self, is_open: bool) -> None:
+        # Folder members visually replace the home list; widgets hide with it
+        if getattr(self, '_widget_block', None) is not None:
+            self._widget_block.set_visible(not is_open)
 
     def _open_dialer(self) -> None:
         from dialer import Dialer
@@ -330,9 +365,36 @@ class ShellWindow(Adw.ApplicationWindow):
         d.present()
         self._dialer = d
 
+    def _launch_slot(self, slot: dict) -> None:
+        """Launch an app or command from a home slot."""
+        # Record usage
+        app_id = slot.get('app_id')
+        if app_id:
+            self.config.record_launch(app_id)
+
+        # Launch based on type
+        slot_type = slot.get('type')
+        if slot_type == 'app':
+            android_pkg = slot.get('app_id')
+            cmd = slot.get('cmd')
+            label = slot.get('label', '')
+
+            if label == 'Phone' and not android_pkg and not cmd:
+                # Built-in dialer
+                self._open_dialer()
+            elif android_pkg:
+                # Android app via waydroid
+                from home_launcher import _launch_android
+                _launch_android(android_pkg)
+            elif cmd:
+                # Command
+                from home_launcher import _launch_cmd
+                _launch_cmd(cmd)
+
     def _handle_back(self) -> None:
         """Called by BackGestureLayer on edge swipe from either side."""
-        import subprocess, os
+        import subprocess
+        import os
         # 1. Dismiss notification shade if open
         if self._shade and self._shade.get_visible():
             self._shade.hide_shade()
@@ -344,6 +406,10 @@ class ShellWindow(Adw.ApplicationWindow):
         # 3. Close dialer if open
         if self._dialer and self._dialer.get_visible():
             self._dialer.close()
+            return
+        # 3b. Dismiss an open in-place folder view
+        launcher = getattr(self, '_home_launcher', None)
+        if launcher is not None and launcher.close_folder():
             return
         # 4. Navigate back within the shell stack
         current = self.stack.get_visible_child_name()
@@ -419,20 +485,20 @@ class ShellWindow(Adw.ApplicationWindow):
         outer.set_margin_start(24)
         outer.set_margin_end(0)
 
-        self._sort_by_usage = False
+        self._sort_mode = 'az'
 
         title = Gtk.Label(label='All apps', xalign=0, hexpand=True)
         title.add_css_class('section-title')
 
-        self._usage_sort_btn = Gtk.Button(label='A-Z')
-        self._usage_sort_btn.add_css_class('flat')
-        self._usage_sort_btn.add_css_class('action-link')
-        self._usage_sort_btn.connect('clicked', self._toggle_usage_sort)
+        self._sort_btn = Gtk.Button(label='A-Z')
+        self._sort_btn.add_css_class('flat')
+        self._sort_btn.add_css_class('action-link')
+        self._sort_btn.connect('clicked', self._toggle_sort_mode)
 
         header_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         header_row.set_margin_end(24)
         header_row.append(title)
-        header_row.append(self._usage_sort_btn)
+        header_row.append(self._sort_btn)
 
         self.apps_search.set_margin_end(24)
         self.app_count_label.set_margin_end(24)
@@ -458,16 +524,35 @@ class ShellWindow(Adw.ApplicationWindow):
         list_row.append(self.apps_scroller)
         list_row.append(alpha_box)
 
+        # Search lives at the bottom where the thumb is; keyboard only on tap
         outer.append(header_row)
-        outer.append(self.apps_search)
         outer.append(self.app_count_label)
         outer.append(list_row)
+        outer.append(self.apps_search)
         return outer
 
-    def _toggle_usage_sort(self, _btn: Gtk.Button) -> None:
-        self._sort_by_usage = not self._sort_by_usage
-        self._usage_sort_btn.set_label('Usage' if self._sort_by_usage else 'A-Z')
+    def _toggle_sort_mode(self, _btn: Gtk.Button) -> None:
+        self._sort_mode = 'install' if self._sort_mode == 'az' else 'az'
+        self._sort_btn.set_label('Install date' if self._sort_mode == 'install' else 'A-Z')
         self._populate_apps(self.apps_search.get_text())
+
+    def _home_slot_app_ids(self) -> set[str]:
+        ids: set[str] = set()
+        for slot in self.config.home_slots:
+            if slot.get('app_id'):
+                ids.add(str(slot['app_id']))
+            for member in slot.get('folder') or []:
+                if member.get('app_id'):
+                    ids.add(str(member['app_id']))
+        return ids
+
+    @staticmethod
+    def _install_time(entry: AppEntry) -> float:
+        try:
+            filename = entry.desktop_app.get_filename()
+            return Path(filename).stat().st_mtime if filename else 0.0
+        except OSError:
+            return 0.0
 
     def _on_alpha_jump(self, _btn: Gtk.Button, letter: str) -> None:
         idx = self._alpha_letter_rows.get(letter)
@@ -483,6 +568,12 @@ class ShellWindow(Adw.ApplicationWindow):
         adj.set_value(max(0.0, alloc.y))
 
     def _build_settings_page(self) -> Gtk.Widget:
+        from importlib.metadata import version as get_version
+        try:
+            shell_version = get_version('piercing-shell')
+        except Exception:
+            shell_version = '0.1.0'
+
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.add_css_class('settings-page')
@@ -495,34 +586,6 @@ class ShellWindow(Adw.ApplicationWindow):
 
         title = Gtk.Label(label='Shell settings', xalign=0)
         title.add_css_class('section-title')
-
-        # Appearance
-        appearance = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        appearance.add_css_class('settings-card')
-        appearance.append(self._settings_row('Theme preset', self.theme_dropdown))
-        appearance.append(self._settings_row('Font family', self.font_dropdown))
-        appearance.append(self._settings_row('Text size', self.size_dropdown))
-        appearance.append(self._settings_row('Home alignment', self.align_dropdown))
-        appearance.append(self._settings_row('Prefer dark surfaces', self.dark_mode_switch))
-        appearance.append(self._settings_row('Auto-lock', self.auto_lock_dropdown))
-
-        # App index
-        index_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        index_card.add_css_class('settings-card')
-
-        top_apps_button = Gtk.Button(label='Use top 8 apps on home')
-        top_apps_button.add_css_class('flat')
-        top_apps_button.add_css_class('action-link')
-        top_apps_button.connect('clicked', self._use_top_apps_for_home)
-
-        refresh_button = Gtk.Button(label='Rebuild application index')
-        refresh_button.add_css_class('flat')
-        refresh_button.add_css_class('action-link')
-        refresh_button.connect('clicked', self._refresh_index)
-
-        index_card.append(top_apps_button)
-        index_card.append(refresh_button)
-        index_card.append(self.status_label)
 
         # System updates
         system_title = Gtk.Label(label='System', xalign=0)
@@ -544,15 +607,25 @@ class ShellWindow(Adw.ApplicationWindow):
         system_card.append(update_button)
         system_card.append(check_updates_button)
 
-        # Gesture editor
-        gesture_title = Gtk.Label(label='Gestures', xalign=0)
-        gesture_title.add_css_class('section-title')
+        # Backup & restore
+        backup_title = Gtk.Label(label='Backup & restore', xalign=0)
+        backup_title.add_css_class('section-title')
 
-        gesture_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        gesture_card.add_css_class('settings-card')
+        backup_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        backup_card.add_css_class('settings-card')
 
-        for gesture_key, current_action in self.gesture_config.all():
-            gesture_card.append(self._gesture_row(gesture_key, current_action))
+        export_btn = Gtk.Button(label='Export backup')
+        export_btn.add_css_class('flat')
+        export_btn.add_css_class('action-link')
+        export_btn.connect('clicked', lambda _btn: self._on_export_backup())
+
+        restore_btn = Gtk.Button(label='Restore from backup')
+        restore_btn.add_css_class('flat')
+        restore_btn.add_css_class('action-link')
+        restore_btn.connect('clicked', lambda _btn: self._on_restore_backup())
+
+        backup_card.append(export_btn)
+        backup_card.append(restore_btn)
 
         # Mobile data / APN
         network_title = Gtk.Label(label='Mobile data', xalign=0)
@@ -584,29 +657,34 @@ class ShellWindow(Adw.ApplicationWindow):
         apn_card.append(self._settings_row('Password', self.apn_pass_entry))
         apn_card.append(apn_save_btn)
 
-        # Hidden apps management
-        hidden_title = Gtk.Label(label='Hidden apps', xalign=0)
-        hidden_title.add_css_class('section-title')
+        # About
+        about_title = Gtk.Label(label='About', xalign=0)
+        about_title.add_css_class('section-title')
 
-        hidden_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        hidden_card.add_css_class('settings-card')
-        self._hidden_list_box = hidden_card
-        self._refresh_hidden_list()
+        about_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        about_card.add_css_class('settings-card')
 
-        box.append(title)
-        box.append(appearance)
-        box.append(index_card)
+        version_label = Gtk.Label(label=f'Version: {shell_version}', xalign=0)
+        version_label.add_css_class('dim-label')
+
+        device_label = Gtk.Label(label=f'Device: {self._get_device_name()}', xalign=0)
+        device_label.add_css_class('dim-label')
+
+        about_card.append(version_label)
+        about_card.append(device_label)
+
         box.append(system_title)
         box.append(system_card)
-        box.append(hidden_title)
-        box.append(hidden_card)
+        box.append(backup_title)
+        box.append(backup_card)
         box.append(network_title)
         box.append(apn_card)
-        box.append(gesture_title)
-        box.append(gesture_card)
+        box.append(about_title)
+        box.append(about_card)
 
         scroll.set_child(box)
         return scroll
+
 
     def _gesture_row(self, gesture_key: str, current_action: str) -> Gtk.Widget:
         label = Gtk.Label(label=GESTURE_LABELS.get(gesture_key, gesture_key), xalign=0)
@@ -707,7 +785,7 @@ class ShellWindow(Adw.ApplicationWindow):
     def _refresh_clock(self) -> None:
         now = datetime.now()
         self.clock_label.set_text(now.strftime('%H:%M'))
-        self.date_label.set_text(now.strftime('%A, %d %b').replace(' 0', ' '))
+        self.date_label.set_text(now.strftime('%a, %b %d').replace(' 0', ' '))
 
     def _tick_clock(self) -> bool:
         self._refresh_clock()
@@ -739,28 +817,60 @@ class ShellWindow(Adw.ApplicationWindow):
         self._replace_rows(self.home_list, pinned, 'No launchable apps were indexed.', self._make_home_row)
 
     def _populate_apps(self, query: str = '') -> None:
-        sort_usage = getattr(self, '_sort_by_usage', False)
-        results = self.app_index.search(
-            query,
-            sort_by_usage=sort_usage,
-            launch_counts=self.config.launch_counts if sort_usage else None,
-        )
-        hidden = set(self.config.hidden_apps)
-        results = [e for e in results if e.app_id not in hidden]
+        results = self.app_index.search(query)
+        labels = self.config.app_labels
+        trimmed = query.strip().casefold()
+
+        if trimmed:
+            # Search surfaces everything: hidden apps, home-slot apps, folder
+            # members — plus matches against renamed labels.
+            matched = {e.app_id for e in results}
+            renamed_hits = [
+                e for e in self.app_index.entries
+                if e.app_id not in matched and trimmed in labels.get(e.app_id, '').casefold()
+            ]
+            results = results + renamed_hits
+        else:
+            # The browse list hides hidden apps and everything already on home
+            browse_hidden = set(self.config.hidden_apps) | self._home_slot_app_ids()
+            results = [e for e in results if e.app_id not in browse_hidden]
+            if getattr(self, '_sort_mode', 'az') == 'install':
+                results = sorted(results, key=self._install_time, reverse=True)
 
         # Build letter→first-row-index map for A-Z jump strip
         self._alpha_letter_rows = {}
         for idx, entry in enumerate(results):
-            first = entry.name[0].upper() if entry.name else '#'
+            display = labels.get(entry.app_id, entry.name)
+            first = display[0].upper() if display else '#'
             letter = first if first.isalpha() else '#'
             if letter not in self._alpha_letter_rows:
                 self._alpha_letter_rows[letter] = idx
 
         self._replace_rows(self.apps_list, results, 'No apps matched this search.', self._make_app_row)
-        if query.strip():
+
+        # Synthetic "Launcher Settings" entry always sits at the very end
+        if not trimmed or trimmed in 'launcher settings':
+            self.apps_list.append(self._make_settings_row())
+
+        if trimmed:
             self.app_count_label.set_text(f'{len(results)} matches')
         else:
             self.app_count_label.set_text(f'{len(results)} apps indexed')
+
+    def _make_settings_row(self) -> Gtk.ListBoxRow:
+        title = Gtk.Label(label='Launcher Settings', xalign=0)
+        title.add_css_class('app-name')
+        title.set_hexpand(True)
+
+        btn = Gtk.Button()
+        btn.add_css_class('flat')
+        btn.add_css_class('app-entry')
+        btn.set_child(title)
+        btn.connect('clicked', lambda _b: self.stack.set_visible_child_name('settings'))
+
+        row = Gtk.ListBoxRow(selectable=False, activatable=False)
+        row.set_child(btn)
+        return row
 
     def _replace_rows(
         self,
@@ -929,10 +1039,10 @@ class ShellWindow(Adw.ApplicationWindow):
         if not apn:
             return
         try:
-            from gi.repository import Gio, GLib
+            from gi.repository import Gio
             bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
             # Get first active GSM connection from NetworkManager and update APN
-            result = bus.call_sync(
+            _ = bus.call_sync(
                 'org.freedesktop.NetworkManager',
                 '/org/freedesktop/NetworkManager',
                 'org.freedesktop.NetworkManager',
@@ -973,7 +1083,8 @@ class ShellWindow(Adw.ApplicationWindow):
             self._call_bar.hide_bar()
 
     def _make_app_row(self, entry: AppEntry) -> Gtk.ListBoxRow:
-        title = Gtk.Label(label=entry.name, xalign=0)
+        display_name = self.config.label_for(entry.app_id, entry.name)
+        title = Gtk.Label(label=display_name, xalign=0)
         title.add_css_class('app-name')
 
         subtitle = Gtk.Label(label=entry.description or entry.app_id, xalign=0, wrap=True)
@@ -1121,3 +1232,89 @@ class ShellWindow(Adw.ApplicationWindow):
     def _show_status(self, message: str) -> None:
         self.status_label.set_text(message)
         self.toast_overlay.add_toast(Adw.Toast.new(message))
+    def _on_export_backup(self) -> None:
+        from backup import export_backup
+        import json
+        from datetime import datetime
+        from pathlib import Path
+
+        backup = export_backup(self.config)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'piercing-wm-backup-{timestamp}.json'
+        filepath = Path.home() / filename
+        
+        filepath.write_text(json.dumps(backup, indent=2), encoding='utf-8')
+        self._show_status(f'Backup exported to {filepath}')
+    
+    def _on_restore_backup(self) -> None:
+        from backup import validate_backup, restore_backup
+        import json
+        from gi.repository import Gtk as gtk
+        
+        # Create a file chooser dialog
+        dialog = gtk.FileChooserDialog(
+            title='Restore from backup',
+            parent=self,
+            action=gtk.FileChooserAction.OPEN,
+        )
+        dialog.add_buttons(
+            '_Cancel',
+            gtk.ResponseType.CANCEL,
+            '_Restore',
+            gtk.ResponseType.OK,
+        )
+        
+        filter_json = gtk.FileFilter()
+        filter_json.set_name('JSON files')
+        filter_json.add_pattern('*.json')
+        dialog.add_filter(filter_json)
+        
+        response = dialog.run()
+        
+        if response == gtk.ResponseType.OK:
+            filepath = dialog.get_filename()
+            dialog.destroy()
+            
+            try:
+                payload = json.loads(Path(filepath).read_text(encoding='utf-8'))
+            except (OSError, json.JSONDecodeError) as e:
+                self._show_status(f'Failed to read backup: {e}')
+                return
+            
+            is_valid, error = validate_backup(payload)
+            if not is_valid:
+                self._show_status(f'Invalid backup: {error}')
+                return
+            
+            success = restore_backup(self.config, payload)
+            if success:
+                self._show_status('Backup restored successfully')
+                # Reload config to apply changes
+                self.config.load()
+                self._sync_controls_from_config()
+            else:
+                self._show_status('Failed to restore backup')
+        else:
+            dialog.destroy()
+    
+    def _get_device_name(self) -> str:
+        import platform
+        try:
+            # Try to read device model from sysfs (common on Linux phones)
+            with open('/sys/devices/virtual/dmi/id/product_name', 'r') as f:
+                return f.read().strip()
+        except Exception:
+            pass
+        
+        try:
+            with open('/sys/devices/virtual/dmi/id/sys_vendor', 'r') as f:
+                vendor = f.read().strip()
+            with open('/sys/devices/virtual/dmi/id/product_version', 'r') as f:
+                version = f.read().strip()
+            return f'{vendor} {version}'
+        except Exception:
+            pass
+        
+        # Fallback to platform info
+        return f'{platform.system()} {platform.release()}'
+
