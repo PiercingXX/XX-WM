@@ -1,9 +1,10 @@
 """
 Home screen launcher — slot list rendered from config.home_slots.
 
-Folders expand in place: tapping a folder swaps the slot list for the
-folder's members (same typography, no title or close chrome) and the window
-hides the widget block; launching a member or any other gesture dismisses.
+Folders drop open inline: tapping a folder slot inserts its members directly
+under that row (same typography, no title or close chrome); the centered list
+grows around them and the widget block stays visible. Tapping the folder
+again, launching a member, or a re-render collapses it.
 Android apps launch via waydroid when available.
 """
 from __future__ import annotations
@@ -15,7 +16,7 @@ import os as _os
 
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk
+from gi.repository import GLib, Gtk
 
 _HOME_CSS = b"""
 .home-item-btn {
@@ -95,36 +96,33 @@ def _launch_cmd(cmd: list[str]) -> None:
 
 
 class HomeLauncher(Gtk.Box):
-    """Vertical list of home slots with in-place folder expansion."""
+    """Vertical list of home slots; folders drop open inline under their slot."""
 
     def __init__(self, open_dialer_fn: Callable[[], None] | None = None,
                  get_slots_fn: Callable[[], list[dict]] | None = None,
-                 on_launch_slot: Callable[[dict], None] | None = None,
-                 on_folder_toggled: Callable[[bool], None] | None = None) -> None:
+                 on_launch_slot: Callable[[dict], None] | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_vexpand(True)
         self._open_dialer = open_dialer_fn
         self._get_slots = get_slots_fn or (lambda: [])
         self._on_launch_slot = on_launch_slot or (lambda slot: None)
-        self._on_folder_toggled = on_folder_toggled or (lambda is_open: None)
-        self._open_folder: dict | None = None
+        self._open_folder_index: int | None = None
         self._build()
 
     @property
     def folder_open(self) -> bool:
-        return self._open_folder is not None
+        return self._open_folder_index is not None
 
     def close_folder(self) -> bool:
-        """Dismiss the in-place folder view. Returns True if one was open."""
-        if self._open_folder is None:
+        """Collapse the open folder drop-down. Returns True if one was open."""
+        if self._open_folder_index is None:
             return False
-        self._open_folder = None
+        self._open_folder_index = None
         self._build()
-        self._on_folder_toggled(False)
         return True
 
     def refresh(self) -> None:
-        self._open_folder = None
+        self._open_folder_index = None
         self._build()
 
     def _build(self) -> None:
@@ -134,19 +132,40 @@ class HomeLauncher(Gtk.Box):
             self.remove(child)
             child = nxt
 
-        if self._open_folder is not None:
-            for member in self._open_folder.get('folder', []):
-                self.append(self._make_row(member.get('label', ''),
-                                           lambda m=member: self._tap_member(m)))
-            return
+        slots = self._get_slots()
+        open_idx = self._open_folder_index
+        if open_idx is not None and not (
+            0 <= open_idx < len(slots) and slots[open_idx].get('type') == 'folder'
+        ):
+            self._open_folder_index = open_idx = None
 
-        for slot in self._get_slots():
+        for idx, slot in enumerate(slots):
             slot_type = slot.get('type')
             if slot_type == 'app':
                 self.append(self._make_row(slot.get('label', ''),
                                            lambda s=slot: self._on_launch_slot(s)))
             elif slot_type == 'folder':
-                self.append(self._make_folder_row(slot))
+                self.append(self._make_folder_row(slot, idx))
+                if idx == open_idx:
+                    self.append(self._make_member_dropdown(slot))
+
+    def _make_member_dropdown(self, slot: dict) -> Gtk.Widget:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        for member in slot.get('folder', []):
+            box.append(self._make_row(member.get('label', ''),
+                                      lambda m=member: self._tap_member(m)))
+        revealer = Gtk.Revealer(
+            transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
+            transition_duration=120,
+        )
+        revealer.set_child(box)
+        GLib.idle_add(self._reveal_once, revealer)
+        return revealer
+
+    @staticmethod
+    def _reveal_once(revealer: Gtk.Revealer) -> bool:
+        revealer.set_reveal_child(True)
+        return GLib.SOURCE_REMOVE
 
     def _make_row(self, label: str, on_tap: Callable[[], None]) -> Gtk.Button:
         lbl = Gtk.Label(label=label)
@@ -160,7 +179,7 @@ class HomeLauncher(Gtk.Box):
         btn.connect('clicked', lambda _b: on_tap())
         return btn
 
-    def _make_folder_row(self, slot: dict) -> Gtk.Button:
+    def _make_folder_row(self, slot: dict, idx: int) -> Gtk.Button:
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         row.set_halign(Gtk.Align.CENTER)
 
@@ -176,15 +195,17 @@ class HomeLauncher(Gtk.Box):
         btn.add_css_class('home-item-btn')
         btn.set_hexpand(True)
         btn.set_child(row)
-        btn.connect('clicked', lambda _b, s=slot: self._open_folder_view(s))
+        btn.connect('clicked', lambda _b, i=idx, s=slot: self._toggle_folder(i, s))
         return btn
 
-    def _open_folder_view(self, slot: dict) -> None:
-        if not slot.get('folder'):
+    def _toggle_folder(self, idx: int, slot: dict) -> None:
+        if self._open_folder_index == idx:
+            self._open_folder_index = None
+        elif slot.get('folder'):
+            self._open_folder_index = idx
+        else:
             return
-        self._open_folder = slot
         self._build()
-        self._on_folder_toggled(True)
 
     def _tap_member(self, member: dict) -> None:
         self.close_folder()

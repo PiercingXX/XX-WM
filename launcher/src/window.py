@@ -53,7 +53,6 @@ class ShellWindow(Adw.ApplicationWindow):
         except Exception:
             pass  # first-boot seeding must never block the shell
 
-        self._edit_mode = False
         self._idle_timer_id: int | None = None
         self._call_ui: object | None = None
         self._call_bar: object | None = None
@@ -72,9 +71,6 @@ class ShellWindow(Adw.ApplicationWindow):
         self.base_provider = Gtk.CssProvider()
         self.theme_provider = Gtk.CssProvider()
         self._load_css()
-
-        self.home_rows: list[Gtk.Widget] = []
-        self.drawer_rows: list[Gtk.Widget] = []
 
         self.stack = Gtk.Stack(
             hexpand=True,
@@ -141,9 +137,6 @@ class ShellWindow(Adw.ApplicationWindow):
         self.status_strip = Gtk.Label(xalign=0)
         self.status_strip.add_css_class('dim-label')
 
-        self.home_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.home_list.add_css_class('text-list')
-
         self.apps_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         self.apps_list.add_css_class('text-list')
 
@@ -162,7 +155,6 @@ class ShellWindow(Adw.ApplicationWindow):
         self._sync_controls_from_config()
         self._apply_theme()
         self._refresh_clock()
-        self._populate_home()
         self._populate_apps()
         self._refresh_status()
         self._setup_idle_timer()
@@ -199,11 +191,6 @@ class ShellWindow(Adw.ApplicationWindow):
         return root
 
     def _on_stack_swipe(self, _gesture: Gtk.GestureSwipe, vel_x: float, vel_y: float) -> None:
-        # Any gesture dismisses an open in-place folder view
-        launcher = getattr(self, '_home_launcher', None)
-        if launcher is not None and launcher.close_folder():
-            self._swipe_navigated = True
-            return
         # Vertical swipes: shade (down) or switcher (up)
         if abs(vel_y) > abs(vel_x) * 1.5:
             self._swipe_navigated = True
@@ -275,7 +262,6 @@ class ShellWindow(Adw.ApplicationWindow):
         clock_inner.append(self.clock_label)
         clock_inner.append(self.date_label)
         clock_inner.append(self.status_strip)
-        self._widget_block = clock_inner
 
         # Equal spacers above and below clock_inner → vertically centered in top pane
         top_pane = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -300,7 +286,6 @@ class ShellWindow(Adw.ApplicationWindow):
             open_dialer_fn=self._open_dialer,
             get_slots_fn=_get_home_slots,
             on_launch_slot=_launch_slot,
-            on_folder_toggled=self._on_folder_toggled,
         )
 
         launcher_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -350,11 +335,6 @@ class ShellWindow(Adw.ApplicationWindow):
         paned.connect('realize', _set_ratio_once)
 
         return paned
-
-    def _on_folder_toggled(self, is_open: bool) -> None:
-        # Folder members visually replace the home list; widgets hide with it
-        if getattr(self, '_widget_block', None) is not None:
-            self._widget_block.set_visible(not is_open)
 
     def _open_dialer(self) -> None:
         from dialer import Dialer
@@ -406,10 +386,6 @@ class ShellWindow(Adw.ApplicationWindow):
         # 3. Close dialer if open
         if self._dialer and self._dialer.get_visible():
             self._dialer.close()
-            return
-        # 3b. Dismiss an open in-place folder view
-        launcher = getattr(self, '_home_launcher', None)
-        if launcher is not None and launcher.close_folder():
             return
         # 4. Navigate back within the shell stack
         current = self.stack.get_visible_child_name()
@@ -480,7 +456,7 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _build_apps_page(self) -> Gtk.Widget:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        outer.set_margin_top(36)
+        outer.set_vexpand(True)
         outer.set_margin_bottom(24)
         outer.set_margin_start(24)
         outer.set_margin_end(0)
@@ -529,7 +505,25 @@ class ShellWindow(Adw.ApplicationWindow):
         outer.append(self.app_count_label)
         outer.append(list_row)
         outer.append(self.apps_search)
-        return outer
+
+        # The drawer leaves the top ~15% of the screen free so it reads as a
+        # sheet rather than a full-screen takeover.
+        spacer = Gtk.Box()
+        sheet = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        sheet.set_vexpand(True)
+        sheet.append(spacer)
+        sheet.append(outer)
+
+        def _set_sheet_ratio(w: Gtk.Box) -> None:
+            def _apply() -> bool:
+                h = w.get_height()
+                if h > 0:
+                    spacer.set_size_request(-1, int(h * 0.15))
+                    return GLib.SOURCE_REMOVE
+                return GLib.SOURCE_CONTINUE
+            GLib.idle_add(_apply)
+        sheet.connect('realize', _set_sheet_ratio)
+        return sheet
 
     def _toggle_sort_mode(self, _btn: Gtk.Button) -> None:
         self._sort_mode = 'install' if self._sort_mode == 'az' else 'az'
@@ -800,21 +794,9 @@ class ShellWindow(Adw.ApplicationWindow):
 
     def _refresh_index(self, _button: Gtk.Button | None = None) -> None:
         self.app_index.refresh()
-        self._populate_home()
+        self._home_launcher.refresh()
         self._populate_apps(self.apps_search.get_text())
         self._show_status('Application index rebuilt.')
-
-    def _use_top_apps_for_home(self, _button: Gtk.Button) -> None:
-        top_ids = [entry.app_id for entry in self.app_index.top(8)]
-        self.config.set_pinned(top_ids)
-        self._populate_home()
-        self._show_status('Pinned home list reset to the first 8 visible apps.')
-
-    def _populate_home(self) -> None:
-        pinned = self.app_index.resolve(self.config.pinned)
-        if not pinned:
-            pinned = self.app_index.top(8)
-        self._replace_rows(self.home_list, pinned, 'No launchable apps were indexed.', self._make_home_row)
 
     def _populate_apps(self, query: str = '') -> None:
         results = self.app_index.search(query)
@@ -852,10 +834,20 @@ class ShellWindow(Adw.ApplicationWindow):
         if not trimmed or trimmed in 'launcher settings':
             self.apps_list.append(self._make_settings_row())
 
+        # Search results anchor at the bottom, above the search field, within
+        # thumb reach; a set that overflows the view still reads from the top.
+        self.apps_list.set_valign(Gtk.Align.END if trimmed else Gtk.Align.FILL)
+        if trimmed:
+            GLib.idle_add(self._scroll_apps_to_top)
+
         if trimmed:
             self.app_count_label.set_text(f'{len(results)} matches')
         else:
             self.app_count_label.set_text(f'{len(results)} apps indexed')
+
+    def _scroll_apps_to_top(self) -> bool:
+        self.apps_scroller.get_vadjustment().set_value(0.0)
+        return GLib.SOURCE_REMOVE
 
     def _make_settings_row(self) -> Gtk.ListBoxRow:
         title = Gtk.Label(label='Launcher Settings', xalign=0)
@@ -897,60 +889,18 @@ class ShellWindow(Adw.ApplicationWindow):
         for entry in entries:
             list_box.append(maker(entry))
 
-    def _make_home_row(self, entry: AppEntry) -> Gtk.ListBoxRow:
-        alignment_map = {'left': 0.0, 'center': 0.5, 'right': 1.0}
-        xalign = alignment_map.get(self.config.home_alignment, 0.0)
-
-        title = Gtk.Label(label=entry.name, xalign=xalign)
-        title.add_css_class('app-name')
-
-        subtitle = Gtk.Label(label=entry.description or entry.app_id, xalign=xalign, wrap=True)
-        subtitle.add_css_class('app-subtitle')
-        subtitle.add_css_class('dim-label')
-
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        content.append(title)
-        content.append(subtitle)
-        content.set_hexpand(True)
-
-        launch_btn = Gtk.Button()
-        launch_btn.add_css_class('flat')
-        launch_btn.add_css_class('app-entry')
-        launch_btn.set_child(content)
-        launch_btn.connect('clicked', lambda _b, e=entry: self._launch_entry(e))
-
-        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        outer.append(launch_btn)
-
-        if self._edit_mode:
-            unpin_btn = Gtk.Button(label='×')
-            unpin_btn.add_css_class('flat')
-            unpin_btn.add_css_class('dim-label')
-            unpin_btn.set_valign(Gtk.Align.CENTER)
-            unpin_btn.connect('clicked', lambda _b, eid=entry.app_id: self._unpin_app(eid))
-            outer.append(unpin_btn)
-
-        row = Gtk.ListBoxRow(selectable=False, activatable=False)
-        row.set_child(outer)
-        return row
-
-    def _toggle_edit_mode(self, _btn: Gtk.Button) -> None:
-        self._edit_mode = not self._edit_mode
-        self.edit_btn.set_label('Done' if self._edit_mode else 'Edit')
-        self._populate_home()
-
     def _pin_app(self, app_id: str) -> None:
         pinned = list(self.config.pinned)
         if app_id not in pinned:
             pinned.append(app_id)
             self.config.set_pinned(pinned)
-            self._populate_home()
+            self._populate_apps(self.apps_search.get_text())
             self._show_status('Pinned to home.')
 
     def _unpin_app(self, app_id: str) -> None:
         pinned = [p for p in self.config.pinned if p != app_id]
         self.config.set_pinned(pinned)
-        self._populate_home()
+        self._populate_apps(self.apps_search.get_text())
 
     def _hide_app(self, app_id: str) -> None:
         hidden = list(self.config.hidden_apps)
@@ -1190,7 +1140,7 @@ class ShellWindow(Adw.ApplicationWindow):
     def _on_align_changed(self, dropdown: Gtk.DropDown, _p: object) -> None:
         alignment = self._align_values[dropdown.get_selected()]
         self.config.set_home_alignment(alignment)
-        self._populate_home()
+        self._home_launcher.refresh()
         self._show_status('Home alignment updated.')
 
     def _on_update_clicked(self, _btn: Gtk.Button | None = None) -> None:

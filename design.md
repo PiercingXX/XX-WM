@@ -25,16 +25,19 @@ Text-first. No icon grids, no app icons on home. Low visual noise, local-only cu
 
 ## App drawer
 
-- Full-screen text list; **search lives at the bottom** where the thumb is. The keyboard opens only when the search field is tapped — never automatically.
+- **Bottom sheet, ~85% of screen height** — the top ~15% stays free so the drawer reads as a sheet, not a full-screen takeover. **Search lives at the bottom** where the thumb is. The keyboard opens only when the search field is tapped — never automatically.
+- **Search results anchor at the bottom**, directly above the search field (and above the on-screen keyboard when open), within thumb reach: a short result set sits at the bottom of the list; a set that overflows the view reads from the top. The drawer rises above the keyboard, never behind it.
 - Drawer rows use a **smaller type size** than home slots.
 - Search can **auto-launch the single result**; `!query` falls back to web search.
 - Sort: a single toggle cycling **A–Z ↔ install date** (default A–Z). No size or usage sorts.
 - A–Z character jump strip on the right edge.
-- Row order: apps, then a synthetic **Launcher Settings** entry always last.
+- Row order: folders first, then apps, then a synthetic **Launcher Settings** entry always last.
+- **Folder rows expand inline**: tapping a folder drops its members open directly under the row as an indented drop-down; tapping it again (or a swipe right) collapses it. On expand, the folder row plus its members scroll to sit vertically centered. The expansion survives list refreshes and collapses automatically if the folder disappears.
 - **Search-only items**: hidden apps, apps occupying home slots, and folder members are absent from the browse list but all surface in search results.
 - Other launchers/shells never appear in the drawer at all, not even in search.
 - Per-app rename labels (`app_labels`); the renamed label shows everywhere and search matches both the original and renamed name.
 - Long-press a row → one plain action list: App info, Rename, Add to folder, Hide/Show, **Disable for…**, Pin/Unpin, Move up/down. (No uninstall — package ops are distro-specific.)
+- Long-press an **expanded folder member** → the shared folder-member menu (see Folders) — identical on home and in the drawer.
 
 ### Disable for… (notification muting)
 
@@ -42,7 +45,16 @@ Mute an app's notifications for **1, 2, 4, or 8 hours**. While muted, the app's 
 
 ## Folders
 
-Create, rename, delete, manage membership, manual reorder. **Folders expand in place on home**: tapping a folder swaps the slot list for the folder's members — same typography and size as home slots, no title, no close button — and the widget block hides. Tapping a member launches it; **any other gesture dismisses** the folder and restores home. No nested folders.
+Create, rename, delete, manage membership, manual reorder. **Folders expand as inline drop-downs** everywhere they appear:
+
+- **On home**: tapping a folder slot drops its members open directly under that slot — same typography as home slots, wrap-width rows following the home alignment, no title, no close chrome. The slot list stays vertically centered and grows/shrinks around the expansion; **the widget block stays visible**. Tapping the folder again or launching a member collapses it; a home re-render (config change, app list refresh) collapses it too. Other gestures act normally — they don't force-dismiss the folder.
+- **In the drawer**: members drop open indented under the folder row (see App drawer).
+- **Long-press a member** (home or drawer) → one shared action menu: App info, Rename, **Disable for…** (apps only), Move up, Move down. (No uninstall — package ops are distro-specific.)
+- Expand/collapse uses a quick functional reveal (~120 ms); rows give pressed-state touch feedback. No nested folders.
+
+## Dialogs & menus
+
+Every dialog and action menu the shell draws (long-press menus, rename entries, confirm steps) follows the active theme's colors and the launcher font — no stock-toolkit styling. Text entries in dialogs commit on the keyboard's Enter/Done key, same as the confirm button.
 
 ## Gestures
 
