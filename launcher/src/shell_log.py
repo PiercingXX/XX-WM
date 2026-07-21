@@ -29,7 +29,7 @@ def setup_logging() -> None:
     root.addHandler(file_handler)
     root.addHandler(stderr_handler)
 
-    logging.getLogger('piercing').info('PiercingOS shell starting — log: %s', log_path)
+    logging.getLogger('piercing').info('PiercingXX shell starting — log: %s', log_path)
 
 
 def get_logger(name: str) -> logging.Logger:

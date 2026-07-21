@@ -138,7 +138,7 @@ class NotificationDaemon:
                 )
             elif method == 'GetServerInformation':
                 invocation.return_value(
-                    GLib.Variant('(ssss)', ('PiercingOS', 'PiercingXX', '1.0', '1.2'))
+                    GLib.Variant('(ssss)', ('PiercingXX', 'PiercingXX', '1.0', '1.2'))
                 )
             elif method == 'Notify':
                 notif_id = self._handle_notify(params)

@@ -78,7 +78,7 @@ class AppSwitcher(Gtk.Window):
     """
 
     def __init__(self) -> None:
-        super().__init__(title='PiercingOS Switcher')
+        super().__init__(title='PiercingXX Switcher')
 
         if _LAYER_SHELL and LayerShell.is_supported():
             LayerShell.init_for_window(self)

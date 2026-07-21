@@ -1,5 +1,5 @@
 [Unit]
-Description=PiercingOS Shell
+Description=PiercingXX Shell
 Documentation=https://github.com/piercingxx/linux-phone
 PartOf=graphical-session.target
 After=graphical-session.target

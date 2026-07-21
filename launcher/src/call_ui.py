@@ -121,7 +121,7 @@ class CallBar(Gtk.Window):
     """Persistent in-call bar shown at the top of home screen during an active call."""
 
     def __init__(self, on_expand: Callable[[], None]) -> None:
-        super().__init__(title='PiercingOS Call Bar')
+        super().__init__(title='PiercingXX Call Bar')
 
         if _LAYER_SHELL and LayerShell.is_supported():
             LayerShell.init_for_window(self)
@@ -176,7 +176,7 @@ class CallUI(Gtk.Window):
         on_decline: Callable[[], None] | None = None,
         on_hangup: Callable[[], None] | None = None,
     ) -> None:
-        super().__init__(title='PiercingOS Call')
+        super().__init__(title='PiercingXX Call')
 
         if _LAYER_SHELL and LayerShell.is_supported():
             LayerShell.init_for_window(self)

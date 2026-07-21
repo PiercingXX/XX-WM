@@ -123,7 +123,7 @@ class NotificationShade(Gtk.Window):
     def __init__(self, dnd_state: object | None = None,
                  focus_state: object | None = None,
                  on_open_settings: object | None = None) -> None:
-        super().__init__(title='PiercingOS Shade')
+        super().__init__(title='PiercingXX Shade')
         self._dnd = dnd_state
         self._focus = focus_state
         self._on_open_settings = on_open_settings
