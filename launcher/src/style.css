@@ -46,10 +46,31 @@ window.piercing-shell paned {
 .settings-page list,
 .settings-page row,
 .settings-page scrolledwindow,
-entry {
+.settings-page entry {
   border-radius: 20px;
   border-width: 1px;
   border-style: solid;
+}
+
+/* Drawer search: flat text, no box chrome — text-first like every surface */
+entry.drawer-search,
+searchentry.drawer-search {
+  background: transparent;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  outline: none;
+  font-size: 13pt;
+  min-height: 44px;
+}
+entry.drawer-search image,
+searchentry.drawer-search image {
+  opacity: 0.4;
+}
+
+/* Single-line drawer rows */
+.app-name {
+  font-size: 13pt;
 }
 
 /* Home launcher scroll area — fully transparent so it matches the clock background */

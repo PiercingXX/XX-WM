@@ -11,7 +11,7 @@ try:
 except ValueError:
     pass
 
-from gi.repository import Adw, Gdk, GLib, Gtk
+from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
 if _LAYER_SHELL:
     from gi.repository import Gtk4LayerShell as LayerShell
@@ -31,7 +31,7 @@ _WEB_SEARCH_URL = 'https://duckduckgo.com/?q='
 
 class ShellWindow(Adw.ApplicationWindow):
     def __init__(self, application: Adw.Application) -> None:
-        super().__init__(application=application, title='PiercingOS')
+        super().__init__(application=application, title='PiercingXX')
         self.add_css_class('piercing-shell')
 
         if _LAYER_SHELL and LayerShell.is_supported():
@@ -40,7 +40,10 @@ class ShellWindow(Adw.ApplicationWindow):
             for edge in (LayerShell.Edge.TOP, LayerShell.Edge.BOTTOM,
                          LayerShell.Edge.LEFT, LayerShell.Edge.RIGHT):
                 LayerShell.set_anchor(self, edge, True)
-            LayerShell.set_exclusive_zone(self, -1)
+            # Zone 0 (not -1): the shell shrinks above other surfaces'
+            # exclusive zones — critically the OSK, so the drawer search
+            # field rides up above the keyboard instead of hiding under it
+            LayerShell.set_exclusive_zone(self, 0)
         else:
             self.set_default_size(420, 860)
             self.fullscreen()
@@ -103,7 +106,10 @@ class ShellWindow(Adw.ApplicationWindow):
             focus_state=self.focus_state,
         )
 
-        self.apps_search = Gtk.SearchEntry(placeholder_text='Filter apps')
+        # Right-aligned flat search, as in the PiercingXX Android launcher
+        self.apps_search = Gtk.SearchEntry(placeholder_text='Search')
+        self.apps_search.set_alignment(1.0)
+        self.apps_search.add_css_class('drawer-search')
         self.apps_search.connect('search-changed', self._on_apps_search_changed)
         self.apps_search.connect('activate', self._on_apps_search_activate)
 
@@ -179,14 +185,15 @@ class ShellWindow(Adw.ApplicationWindow):
         return root
 
     def _on_stack_swipe(self, _gesture: Gtk.GestureSwipe, vel_x: float, vel_y: float) -> None:
-        # Vertical swipes: configured swipe-down action, or switcher (up)
+        # Vertical swipes match the PiercingXX Android launcher: up opens the
+        # app drawer, down runs the configured action (default: shade)
         if abs(vel_y) > abs(vel_x) * 1.5:
             self._swipe_navigated = True
             if vel_y > 300:
                 self._dispatch_gesture_action(
                     self.gesture_config.get('swipe_down_top') or 'notification_shade')
             elif vel_y < -400:
-                self._show_switcher()
+                self.stack.set_visible_child_name('apps')
             return
         if abs(vel_y) > abs(vel_x):
             return
@@ -201,12 +208,15 @@ class ShellWindow(Adw.ApplicationWindow):
         # an unbound ('none') swipe falls through to page navigation so the
         # drawer stays reachable without lisgd.
         if current == 'home' and not self._home_launcher.edit_mode:
-            action = self.gesture_config.get(
-                'swipe_left_home' if vel_x < -200 else 'swipe_right_home')
-            if abs(vel_x) > 200 and action != 'none':
+            # Sideways on home is app-launch only (launcher parity) — an
+            # unbound direction does nothing; the drawer is a swipe up away
+            if abs(vel_x) > 200:
                 self._swipe_navigated = True
-                self._dispatch_gesture_action(action)
-                return
+                action = self.gesture_config.get(
+                    'swipe_left_home' if vel_x < -200 else 'swipe_right_home')
+                if action != 'none':
+                    self._dispatch_gesture_action(action)
+            return
         idx = _PAGE_ORDER.index(current) if current in _PAGE_ORDER else 0
         if vel_x < -200 and idx < len(_PAGE_ORDER) - 1:
             self._swipe_navigated = True
@@ -263,6 +273,53 @@ class ShellWindow(Adw.ApplicationWindow):
         self._refresh_after_item_action()
         self._show_status('Focus turned off.')
 
+    def preload_gesture_apps(self) -> None:
+        """Warm the swipe-bound apps at session start so the gesture opens a
+        resident process instead of cold-starting it (the camera through the
+        android HAL can take a minute-plus cold). Launched apps briefly map
+        above home; the delayed present_over_apps() re-raises the shell, and
+        the next real launch drops it back so the warm window comes forward.
+        """
+        from gi.repository import Gio
+        ids: list[str] = []
+        for key in ('swipe_left_home', 'swipe_right_home'):
+            action = self.gesture_config.get(key) or 'none'
+            if action == 'camera':
+                entry = next((e for e in self.app_index.entries
+                              if 'camera' in e.name.casefold()), None)
+                if entry:
+                    ids.append(entry.app_id)
+            elif action.startswith('launch:'):
+                ids.append(action[len('launch:'):])
+        for app_id in ids:
+            try:
+                info = Gio.DesktopAppInfo.new(app_id)
+                if info is not None:
+                    info.launch([], None)
+            except Exception:
+                continue
+        if ids:
+            GLib.timeout_add_seconds(5, self._reraise_after_preload)
+
+    def _reraise_after_preload(self) -> bool:
+        self.stack.set_visible_child_name('home')
+        self.present_over_apps()
+        return GLib.SOURCE_REMOVE
+
+    def present_over_apps(self) -> None:
+        """Raise the shell above regular app windows (the go-home gesture).
+
+        Home lives on the BOTTOM layer, so a focused app covers it; until
+        phoc grows foreign-toplevel management this hop to the TOP layer is
+        what makes 'swipe up → home' work while an app is open."""
+        if _LAYER_SHELL and LayerShell.is_supported():
+            LayerShell.set_layer(self, LayerShell.Layer.TOP)
+
+    def drop_to_background(self) -> None:
+        """Return the shell to the BOTTOM layer so launched apps show above."""
+        if _LAYER_SHELL and LayerShell.is_supported():
+            LayerShell.set_layer(self, LayerShell.Layer.BOTTOM)
+
     def _launch_app_id(self, app_id: str) -> None:
         from gi.repository import Gio
         try:
@@ -275,6 +332,7 @@ class ShellWindow(Adw.ApplicationWindow):
         try:
             info.launch([], None)
             self.config.record_launch(app_id)
+            self.drop_to_background()
         except GLib.Error as error:
             self._show_status(f'Failed to launch: {error.message}')
 
@@ -382,35 +440,16 @@ class ShellWindow(Adw.ApplicationWindow):
         edit_press.connect('pressed', self._on_home_long_press)
         bot_pane.add_controller(edit_press)
 
-        # --- Paned: top=1/3, bottom=2/3, ratio maintained on resize ---
-        paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
-        paned.set_hexpand(True)
-        paned.set_vexpand(True)
-        paned.set_wide_handle(False)
-        paned.set_resize_start_child(False)
-        paned.set_resize_end_child(True)
-        paned.set_shrink_start_child(False)
-        paned.set_shrink_end_child(False)
-        paned.set_start_child(top_pane)
-        paned.set_end_child(bot_pane)
-
-        # Set divider at 1/3 once the widget is realized and allocated.
-        # GTK4 removed size-allocate as a connectable signal; use realize + idle_add.
-        # The widget block gets margin_top = h/6 so its center sits on the 1/4
-        # line of the screen ((h/3 + h/6) / 2); the slot list stays centered in
-        # the bottom pane, i.e. on the 2/3 line.
-        def _set_ratio_once(w: Gtk.Paned) -> None:
-            def _apply() -> bool:
-                h = w.get_height()
-                if h > 0:
-                    w.set_position(h // 3)
-                    clock_inner.set_margin_top(h // 6)
-                    return GLib.SOURCE_REMOVE
-                return GLib.SOURCE_CONTINUE   # retry next idle
-            GLib.idle_add(_apply)
-        paned.connect('realize', _set_ratio_once)
-
-        return paned
+        # --- 1/3 widgets / 2/3 launcher — a homogeneous grid, so there is
+        # no Paned divider bar and no realize-time ratio hack. The widget
+        # block centers in the top third; the slot list centers in the rest.
+        grid = Gtk.Grid()
+        grid.set_row_homogeneous(True)
+        grid.set_hexpand(True)
+        grid.set_vexpand(True)
+        grid.attach(top_pane, 0, 0, 1, 1)
+        grid.attach(bot_pane, 0, 1, 1, 2)
+        return grid
 
     def _open_dialer(self) -> None:
         from dialer import Dialer
@@ -442,13 +481,19 @@ class ShellWindow(Adw.ApplicationWindow):
                 # Built-in dialer
                 self._open_dialer()
             elif android_pkg:
-                # Android app via waydroid
-                from home_launcher import _launch_android
-                _launch_android(android_pkg)
+                # Desktop-file ids (incl. waydroid.*.desktop wrappers) launch
+                # via Gio; only bare Android package names go through waydroid
+                if str(android_pkg).endswith('.desktop'):
+                    self._launch_app_id(str(android_pkg))
+                else:
+                    from home_launcher import _launch_android
+                    _launch_android(android_pkg)
+                    self.drop_to_background()
             elif cmd:
                 # Command
                 from home_launcher import _launch_cmd
                 _launch_cmd(cmd)
+                self.drop_to_background()
 
     def _handle_back(self) -> None:
         """Called by BackGestureLayer on edge swipe from either side."""
@@ -644,21 +689,20 @@ class ShellWindow(Adw.ApplicationWindow):
 
         self._sort_mode = 'az'
 
-        title = Gtk.Label(label='All apps', xalign=0, hexpand=True)
-        title.add_css_class('section-title')
-
+        # No 'All apps' header or count — the drawer is just the list, like
+        # the PiercingXX Android launcher; the sort toggle rides alone, dim
         self._sort_btn = Gtk.Button(label='A-Z')
         self._sort_btn.add_css_class('flat')
-        self._sort_btn.add_css_class('action-link')
+        self._sort_btn.add_css_class('dim-label')
+        self._sort_btn.set_halign(Gtk.Align.END)
         self._sort_btn.connect('clicked', self._toggle_sort_mode)
 
         header_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         header_row.set_margin_end(24)
-        header_row.append(title)
+        header_row.append(Gtk.Box(hexpand=True))
         header_row.append(self._sort_btn)
 
         self.apps_search.set_margin_end(24)
-        self.app_count_label.set_margin_end(24)
 
         self.apps_scroller = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         self.apps_scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -683,7 +727,6 @@ class ShellWindow(Adw.ApplicationWindow):
 
         # Search lives at the bottom where the thumb is; keyboard only on tap
         outer.append(header_row)
-        outer.append(self.app_count_label)
         outer.append(list_row)
         outer.append(self.apps_search)
 
@@ -1126,6 +1169,21 @@ class ShellWindow(Adw.ApplicationWindow):
             border-color: {theme.border};
         }}
 
+        /* The home slot list sits directly on the wallpaper-black root —
+           without this it picks up the generic scrolledwindow surface tint */
+        .shell-root scrolledwindow.home-scroll,
+        .shell-root scrolledwindow.home-scroll > viewport {{
+            background: transparent;
+        }}
+
+        /* Drawer search stays flat text — no entry box chrome */
+        .shell-root entry.drawer-search,
+        .shell-root searchentry.drawer-search {{
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }}
+
         .shell-root button:hover,
         .shell-root button:focus {{
             background: {theme.surface_alt};
@@ -1217,11 +1275,9 @@ class ShellWindow(Adw.ApplicationWindow):
 
         self._last_search_results = results if trimmed else []
 
-        # Folder rows only exist in browse mode; drop a stale expansion
-        folder_slots = [] if trimmed else [
-            (idx, slot) for idx, slot in enumerate(self.config.home_slots)
-            if slot.get('type') == 'folder'
-        ]
+        # Home folders stay on home — the drawer only lists apps that are
+        # not already a slot or folder member (they remain searchable)
+        folder_slots: list[tuple[int, dict]] = []
         if self._drawer_open_folder is not None and self._drawer_open_folder not in {
             idx for idx, _slot in folder_slots
         }:
@@ -1651,16 +1707,14 @@ class ShellWindow(Adw.ApplicationWindow):
         paused = self.focus_state.is_paused_app(entry.app_id)
         if paused:
             display_name += ' · paused'
-        title = Gtk.Label(label=display_name, xalign=0)
+        # Single-line centered rows, name only — matches the PiercingXX
+        # Android launcher's drawer; descriptions were noise at phone size
+        title = Gtk.Label(label=display_name, xalign=0.5)
         title.add_css_class('app-name')
+        title.set_ellipsize(Pango.EllipsizeMode.END)
 
-        subtitle = Gtk.Label(label=entry.description or entry.app_id, xalign=0, wrap=True)
-        subtitle.add_css_class('app-subtitle')
-        subtitle.add_css_class('dim-label')
-
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         content.append(title)
-        content.append(subtitle)
         content.set_hexpand(True)
 
         launch_btn = Gtk.Button()
@@ -1689,6 +1743,7 @@ class ShellWindow(Adw.ApplicationWindow):
         if ok:
             self.config.record_launch(entry.app_id)
             self._show_status(f'Launching {entry.name}...')
+            self.drop_to_background()
         else:
             self._show_status(f'Failed to launch {entry.name}: {error}')
 
