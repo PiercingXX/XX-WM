@@ -157,3 +157,10 @@ configure_file(
   install: true,
   install_dir: join_paths(get_option('datadir'), 'systemd', 'user'),
 )
+
+# OpenRC init script (postmarketOS default images)
+install_data(
+  'data/openrc/piercing-shell',
+  install_dir: join_paths(get_option('sysconfdir'), 'init.d'),
+  install_mode: 'rwxr-xr-x',
+)
