@@ -57,6 +57,7 @@ class ShellWindow(Adw.ApplicationWindow):
             pass  # first-boot seeding must never block the shell
 
         self._idle_timer_id: int | None = None
+        self._pick_slot_mode = False
         self._drawer_open_folder: int | None = None
         self._drawer_folder_header: Gtk.ListBoxRow | None = None
         self._last_search_results: list[AppEntry] = []
@@ -83,6 +84,12 @@ class ShellWindow(Adw.ApplicationWindow):
             vexpand=True,
             transition_duration=200,
             transition_type=Gtk.StackTransitionType.NONE,
+        )
+        # Leaving the drawer disarms slot-pick mode so a later tap launches
+        self.stack.connect(
+            'notify::visible-child-name',
+            lambda stack, _p: setattr(self, '_pick_slot_mode', False)
+            if stack.get_visible_child_name() != 'apps' else None,
         )
 
         self.item_actions = AppItemActions(
@@ -301,6 +308,10 @@ class ShellWindow(Adw.ApplicationWindow):
             get_slots_fn=_get_home_slots,
             on_launch_slot=_launch_slot,
             on_member_long_press=lambda w, s, m: self.item_actions.show_member_menu(w, s, m),
+            on_slot_move=self._move_slot,
+            on_slot_remove=self._remove_slot,
+            on_slot_rename=self._rename_slot,
+            on_edit_action=self._on_edit_action,
         )
 
         launcher_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -320,6 +331,12 @@ class ShellWindow(Adw.ApplicationWindow):
         bot_pane.set_vexpand(True)
         bot_pane.set_margin_bottom(24)
         bot_pane.append(launcher_scroll)
+
+        # Long-press anywhere on home → slot edit mode (design.md "Home screen")
+        edit_press = Gtk.GestureLongPress.new()
+        edit_press.set_touch_only(False)
+        edit_press.connect('pressed', self._on_home_long_press)
+        bot_pane.add_controller(edit_press)
 
         # --- Paned: top=1/3, bottom=2/3, ratio maintained on resize ---
         paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
@@ -932,6 +949,87 @@ class ShellWindow(Adw.ApplicationWindow):
         self._home_launcher.refresh(preserve_folder=True)
         self._populate_apps(self.apps_search.get_text())
 
+    # -- home edit mode ----------------------------------------------------
+
+    def _on_home_long_press(self, gesture: Gtk.GestureLongPress, _x: float, _y: float) -> None:
+        if self._home_launcher.edit_mode:
+            return
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        self._home_launcher.set_edit_mode(True)
+
+    def _on_edit_action(self, action: str, widget: Gtk.Widget) -> None:
+        if action == 'done':
+            self._home_launcher.set_edit_mode(False)
+        elif action == 'settings':
+            self._home_launcher.set_edit_mode(False)
+            self.stack.set_visible_child_name('settings')
+        elif action == 'add_app':
+            self._pick_slot_mode = True
+            self.stack.set_visible_child_name('apps')
+            self._show_status('Tap an app to add it to home.')
+        elif action == 'new_folder':
+            self.item_actions._show_entry_dialog(
+                widget, 'New folder', '', 'Create', self._create_folder_slot)
+
+    def _add_app_slot(self, entry: AppEntry) -> None:
+        slots = self.config.home_slots
+        if len(slots) >= 8:
+            self._show_status('Home is full — remove a slot first.')
+            return
+        display = self.config.label_for(entry.app_id, entry.name)
+        slots.append({'type': 'app', 'label': display, 'app_id': entry.app_id,
+                      'cmd': None, 'folder': None})
+        self.config.set_home_slots(slots)
+        self.stack.set_visible_child_name('home')
+        self._home_launcher.refresh()
+        self._populate_apps(self.apps_search.get_text())
+        self._show_status(f'{display} added to home.')
+
+    def _create_folder_slot(self, name: str) -> None:
+        slots = self.config.home_slots
+        if len(slots) >= 8:
+            self._show_status('Home is full — remove a slot first.')
+            return
+        slots.append({'type': 'folder', 'label': name, 'app_id': None, 'cmd': None, 'folder': []})
+        self.config.set_home_slots(slots)
+        self._home_launcher.refresh()
+        self._home_launcher.set_edit_mode(True)
+
+    def _move_slot(self, idx: int, delta: int) -> None:
+        slots = self.config.home_slots
+        new_idx = idx + delta
+        if not (0 <= idx < len(slots) and 0 <= new_idx < len(slots)):
+            return
+        slots[idx], slots[new_idx] = slots[new_idx], slots[idx]
+        self.config.set_home_slots(slots)
+        self._home_launcher.refresh(preserve_folder=True)
+
+    def _remove_slot(self, idx: int) -> None:
+        slots = self.config.home_slots
+        if not (0 <= idx < len(slots)):
+            return
+        removed = slots.pop(idx)
+        self.config.set_home_slots(slots)
+        self._home_launcher.refresh(preserve_folder=True)
+        self._populate_apps(self.apps_search.get_text())
+        self._show_status(f'{removed.get("label", "Slot")} removed from home.')
+
+    def _rename_slot(self, widget: Gtk.Widget, idx: int) -> None:
+        slots = self.config.home_slots
+        if not (0 <= idx < len(slots)):
+            return
+
+        def _commit(text: str) -> None:
+            slots[idx]['label'] = text
+            app_id = slots[idx].get('app_id')
+            if slots[idx].get('type') == 'app' and app_id:
+                self.config.set_app_label(str(app_id), text)
+            self.config.set_home_slots(slots)
+            self._refresh_after_item_action()
+
+        self.item_actions._show_entry_dialog(
+            widget, 'Rename', slots[idx].get('label', ''), 'Rename', _commit)
+
     def _make_drawer_folder_row(self, slot: dict, slot_index: int) -> Gtk.ListBoxRow:
         inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         title = Gtk.Label(label=slot.get('label', ''), xalign=0)
@@ -1170,6 +1268,10 @@ class ShellWindow(Adw.ApplicationWindow):
         return row
 
     def _launch_entry(self, entry: AppEntry) -> None:
+        if self._pick_slot_mode:
+            self._pick_slot_mode = False
+            self._add_app_slot(entry)
+            return
         ok, error = self.app_index.launch(entry)
         if ok:
             self.config.record_launch(entry.app_id)

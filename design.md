@@ -21,7 +21,7 @@ Text-first. No icon grids, no app icons on home. Low visual noise, local-only cu
 - **Screen-fraction anchoring**: the widget block is centered on the **1/4 line** of the screen; the slot list is centered on the **2/3 line**.
 - Widgets above the slots, in default order: **time, date, weather, battery** — individually toggleable, manually orderable, each with a configurable tap action (open default app / refresh weather / open chosen app). Weather is **on** by default. Date renders `Mon, Jul 20`.
 - Alignment configurable (left/center/right); default **centered**.
-- Long-press on home → configuration (slot editing), not a wallpaper picker.
+- Long-press on home → **edit mode** (slot editing), not a wallpaper picker: per-slot ✕ / ↑ / ↓ / rename, "Add app" (drawer pick mode) and "New folder" while under 8 slots, plus Settings and Done entries. Widgets stay visible.
 
 ## App drawer
 
@@ -49,7 +49,7 @@ Create, rename, delete, manage membership, manual reorder. **Folders expand as i
 
 - **On home**: tapping a folder slot drops its members open directly under that slot — same typography as home slots, wrap-width rows following the home alignment, no title, no close chrome. The slot list stays vertically centered and grows/shrinks around the expansion; **the widget block stays visible**. Tapping the folder again or launching a member collapses it; a home re-render (config change, app list refresh) collapses it too. Other gestures act normally — they don't force-dismiss the folder.
 - **In the drawer**: members drop open indented under the folder row (see App drawer).
-- **Long-press a member** (home or drawer) → one shared action menu: App info, Rename, **Disable for…** (apps only), Move up, Move down. (No uninstall — package ops are distro-specific.)
+- **Long-press a member** (home or drawer) → one shared action menu: App info, Rename, **Disable for…** (apps only), Move up, Move down, **Remove from folder** (the Linux analog of Android's uninstall row — package ops are distro-specific).
 - Expand/collapse uses a quick functional reveal (~120 ms); rows give pressed-state touch feedback. No nested folders.
 
 ## Dialogs & menus

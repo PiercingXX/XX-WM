@@ -257,6 +257,7 @@ class AppItemActions:
             actions.append(('Disable for…', lambda: self._show_disable_for(anchor, app_id, label)))
         actions.append(('Move up', lambda: self._move_member(slot_index, member_index, -1)))
         actions.append(('Move down', lambda: self._move_member(slot_index, member_index, +1)))
+        actions.append(('Remove from folder', lambda: self._remove_member(slot_index, member_index)))
         self._show_action_menu(anchor, label, actions)
 
     def _show_member_info(self, anchor: Gtk.Widget, member: dict) -> None:
@@ -285,6 +286,17 @@ class AppItemActions:
             self._on_status(f'Renamed to {text}.')
 
         self._show_entry_dialog(anchor, 'Rename', member.get('label', ''), 'Rename', _commit)
+
+    def _remove_member(self, slot_index: int, member_index: int) -> None:
+        slots = self._config.home_slots
+        members = slots[slot_index].get('folder') or []
+        if not (0 <= member_index < len(members)):
+            return
+        removed = members.pop(member_index)
+        slots[slot_index]['folder'] = members
+        self._config.set_home_slots(slots)
+        self._on_changed()
+        self._on_status(f'{removed.get("label", "Item")} removed from folder.')
 
     def _move_member(self, slot_index: int, member_index: int, delta: int) -> None:
         slots = self._config.home_slots

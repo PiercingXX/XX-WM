@@ -40,6 +40,26 @@ _HOME_CSS = b"""
     color: #5a5a5a;
     margin-left: 6px;
 }
+.home-edit-label {
+    font-size: 18pt;
+    font-weight: 300;
+}
+.home-edit-ctl {
+    font-size: 13pt;
+    font-weight: 300;
+    padding: 4px 12px;
+    background: transparent;
+    border: none;
+    color: #9a9a9a;
+}
+.home-edit-action {
+    font-size: 13pt;
+    font-weight: 300;
+    padding: 10px 0;
+    background: transparent;
+    border: none;
+    color: #9a9a9a;
+}
 """
 
 
@@ -101,14 +121,30 @@ class HomeLauncher(Gtk.Box):
     def __init__(self, open_dialer_fn: Callable[[], None] | None = None,
                  get_slots_fn: Callable[[], list[dict]] | None = None,
                  on_launch_slot: Callable[[dict], None] | None = None,
-                 on_member_long_press: Callable[[Gtk.Widget, int, int], None] | None = None) -> None:
+                 on_member_long_press: Callable[[Gtk.Widget, int, int], None] | None = None,
+                 on_slot_move: Callable[[int, int], None] | None = None,
+                 on_slot_remove: Callable[[int], None] | None = None,
+                 on_slot_rename: Callable[[Gtk.Widget, int], None] | None = None,
+                 on_edit_action: Callable[[str, Gtk.Widget], None] | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_vexpand(True)
         self._open_dialer = open_dialer_fn
         self._get_slots = get_slots_fn or (lambda: [])
         self._on_launch_slot = on_launch_slot or (lambda slot: None)
         self._on_member_long_press = on_member_long_press
+        self._on_slot_move = on_slot_move or (lambda idx, delta: None)
+        self._on_slot_remove = on_slot_remove or (lambda idx: None)
+        self._on_slot_rename = on_slot_rename or (lambda widget, idx: None)
+        self._on_edit_action = on_edit_action or (lambda action, widget: None)
         self._open_folder_index: int | None = None
+        self.edit_mode = False
+        self._build()
+
+    def set_edit_mode(self, enabled: bool) -> None:
+        if self.edit_mode == enabled:
+            return
+        self.edit_mode = enabled
+        self._open_folder_index = None
         self._build()
 
     @property
@@ -136,6 +172,10 @@ class HomeLauncher(Gtk.Box):
             child = nxt
 
         slots = self._get_slots()
+        if self.edit_mode:
+            self._build_edit_rows(slots)
+            return
+
         open_idx = self._open_folder_index
         if open_idx is not None and not (
             0 <= open_idx < len(slots) and slots[open_idx].get('type') == 'folder'
@@ -151,6 +191,52 @@ class HomeLauncher(Gtk.Box):
                 self.append(self._make_folder_row(slot, idx))
                 if idx == open_idx:
                     self.append(self._make_member_dropdown(slot))
+
+    def _build_edit_rows(self, slots: list[dict]) -> None:
+        for idx, slot in enumerate(slots):
+            self.append(self._make_edit_row(slot, idx, len(slots)))
+        for action, label in self._edit_footer_actions(len(slots)):
+            btn = Gtk.Button(label=label)
+            btn.add_css_class('home-edit-action')
+            btn.set_hexpand(True)
+            btn.connect('clicked', lambda _b, a=action, w=btn: self._on_edit_action(a, w))
+            self.append(btn)
+
+    @staticmethod
+    def _edit_footer_actions(slot_count: int) -> list[tuple[str, str]]:
+        actions: list[tuple[str, str]] = []
+        if slot_count < 8:
+            actions.append(('add_app', '+ Add app'))
+            actions.append(('new_folder', '+ New folder'))
+        actions.append(('settings', 'Settings'))
+        actions.append(('done', 'Done'))
+        return actions
+
+    def _make_edit_row(self, slot: dict, idx: int, total: int) -> Gtk.Widget:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        row.set_halign(Gtk.Align.CENTER)
+
+        label_text = slot.get('label', '')
+        if slot.get('type') == 'folder':
+            label_text += ' ›'
+        name_btn = Gtk.Button(label=label_text)
+        name_btn.add_css_class('home-edit-ctl')
+        name_btn.add_css_class('home-edit-label')
+        name_btn.connect('clicked', lambda _b, w=name_btn, i=idx: self._on_slot_rename(w, i))
+        row.append(name_btn)
+
+        for symbol, delta in (('↑', -1), ('↓', +1)):
+            ctl = Gtk.Button(label=symbol)
+            ctl.add_css_class('home-edit-ctl')
+            ctl.set_sensitive(0 <= idx + delta < total)
+            ctl.connect('clicked', lambda _b, i=idx, d=delta: self._on_slot_move(i, d))
+            row.append(ctl)
+
+        remove = Gtk.Button(label='✕')
+        remove.add_css_class('home-edit-ctl')
+        remove.connect('clicked', lambda _b, i=idx: self._on_slot_remove(i))
+        row.append(remove)
+        return row
 
     def _make_member_dropdown(self, slot: dict) -> Gtk.Widget:
         slot_index = self._open_folder_index
