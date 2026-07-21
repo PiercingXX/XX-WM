@@ -17,6 +17,7 @@ if _LAYER_SHELL:
     from gi.repository import Gtk4LayerShell as LayerShell
 
 from app_index import AppEntry, AppIndex
+from app_item_actions import AppItemActions
 from config import FONT_FAMILIES, THEME_PRESETS, ShellConfig
 from gesture_config import ACTION_LABELS, GESTURE_LABELS, GestureConfig, VALID_ACTIONS
 from system_status import status_line
@@ -24,6 +25,8 @@ from system_status import status_line
 _PAGE_ORDER = ['home', 'apps', 'settings']
 
 _UPDATE_NOTIF_ID = 999901
+
+_WEB_SEARCH_URL = 'https://duckduckgo.com/?q='
 
 
 class ShellWindow(Adw.ApplicationWindow):
@@ -54,6 +57,9 @@ class ShellWindow(Adw.ApplicationWindow):
             pass  # first-boot seeding must never block the shell
 
         self._idle_timer_id: int | None = None
+        self._drawer_open_folder: int | None = None
+        self._drawer_folder_header: Gtk.ListBoxRow | None = None
+        self._last_search_results: list[AppEntry] = []
         self._call_ui: object | None = None
         self._call_bar: object | None = None
         self._shade: object | None = None
@@ -79,9 +85,11 @@ class ShellWindow(Adw.ApplicationWindow):
             transition_type=Gtk.StackTransitionType.NONE,
         )
 
-        self.home_search = Gtk.SearchEntry(placeholder_text='Search or launch')
-        self.home_search.connect('activate', self._on_home_search_activate)
-        self.home_search.connect('search-changed', self._on_home_search_changed)
+        self.item_actions = AppItemActions(
+            self.config,
+            on_changed=self._refresh_after_item_action,
+            on_status=self._show_status,
+        )
 
         self.apps_search = Gtk.SearchEntry(placeholder_text='Filter apps')
         self.apps_search.connect('search-changed', self._on_apps_search_changed)
@@ -202,6 +210,12 @@ class ShellWindow(Adw.ApplicationWindow):
         if abs(vel_y) > abs(vel_x):
             return
         current = self.stack.get_visible_child_name()
+        # Swipe right in the drawer collapses an open folder drop-down first
+        if current == 'apps' and vel_x > 200 and self._drawer_open_folder is not None:
+            self._swipe_navigated = True
+            self._drawer_open_folder = None
+            self._populate_apps(self.apps_search.get_text())
+            return
         idx = _PAGE_ORDER.index(current) if current in _PAGE_ORDER else 0
         if vel_x < -200 and idx < len(_PAGE_ORDER) - 1:
             self._swipe_navigated = True
@@ -286,6 +300,7 @@ class ShellWindow(Adw.ApplicationWindow):
             open_dialer_fn=self._open_dialer,
             get_slots_fn=_get_home_slots,
             on_launch_slot=_launch_slot,
+            on_member_long_press=lambda w, s, m: self.item_actions.show_member_menu(w, s, m),
         )
 
         launcher_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -773,6 +788,31 @@ class ShellWindow(Adw.ApplicationWindow):
         .action-link {{
             color: {theme.accent};
         }}
+
+        /* Long-press menus render outside .shell-root; theme them directly
+           so every dialog follows the launcher font and colors. */
+        popover.action-menu > contents {{
+            background: {theme.surface};
+            color: {theme.foreground};
+            font-family: '{self.config.font_family}';
+            font-size: {scale}rem;
+            border: 1px solid {theme.border};
+        }}
+
+        popover.action-menu button,
+        popover.action-menu label {{
+            color: {theme.foreground};
+        }}
+
+        popover.action-menu button:hover,
+        popover.action-menu button:focus {{
+            background: {theme.surface_alt};
+        }}
+
+        popover.action-menu entry {{
+            background: {theme.surface_alt};
+            color: {theme.foreground};
+        }}
         """
         self.theme_provider.load_from_data(css.encode('utf-8'))
 
@@ -818,6 +858,29 @@ class ShellWindow(Adw.ApplicationWindow):
             results = [e for e in results if e.app_id not in browse_hidden]
             if getattr(self, '_sort_mode', 'az') == 'install':
                 results = sorted(results, key=self._install_time, reverse=True)
+            # Pinned apps surface first, in their pinned order
+            pinned_order = {app_id: i for i, app_id in enumerate(self.config.pinned)}
+            pinned = sorted((e for e in results if e.app_id in pinned_order),
+                            key=lambda e: pinned_order[e.app_id])
+            results = pinned + [e for e in results if e.app_id not in pinned_order]
+
+        self._last_search_results = results if trimmed else []
+
+        # Folder rows only exist in browse mode; drop a stale expansion
+        folder_slots = [] if trimmed else [
+            (idx, slot) for idx, slot in enumerate(self.config.home_slots)
+            if slot.get('type') == 'folder'
+        ]
+        if self._drawer_open_folder is not None and self._drawer_open_folder not in {
+            idx for idx, _slot in folder_slots
+        }:
+            self._drawer_open_folder = None
+
+        expanded_members = 0
+        if self._drawer_open_folder is not None:
+            slot = self.config.home_slots[self._drawer_open_folder]
+            expanded_members = len(slot.get('folder') or [])
+        row_offset = len(folder_slots) + expanded_members
 
         # Build letter→first-row-index map for A-Z jump strip
         self._alpha_letter_rows = {}
@@ -826,9 +889,24 @@ class ShellWindow(Adw.ApplicationWindow):
             first = display[0].upper() if display else '#'
             letter = first if first.isalpha() else '#'
             if letter not in self._alpha_letter_rows:
-                self._alpha_letter_rows[letter] = idx
+                self._alpha_letter_rows[letter] = idx + row_offset
 
         self._replace_rows(self.apps_list, results, 'No apps matched this search.', self._make_app_row)
+
+        # Folder drop-downs sit above the app rows (design.md "App drawer")
+        self._drawer_folder_header = None
+        insert_at = 0
+        for idx, slot in folder_slots:
+            header = self._make_drawer_folder_row(slot, idx)
+            if idx == self._drawer_open_folder:
+                self._drawer_folder_header = header
+            self.apps_list.insert(header, insert_at)
+            insert_at += 1
+            if idx == self._drawer_open_folder:
+                for m_idx, member in enumerate(slot.get('folder') or []):
+                    self.apps_list.insert(
+                        self._make_drawer_member_row(idx, m_idx, member), insert_at)
+                    insert_at += 1
 
         # Synthetic "Launcher Settings" entry always sits at the very end
         if not trimmed or trimmed in 'launcher settings':
@@ -848,6 +926,95 @@ class ShellWindow(Adw.ApplicationWindow):
     def _scroll_apps_to_top(self) -> bool:
         self.apps_scroller.get_vadjustment().set_value(0.0)
         return GLib.SOURCE_REMOVE
+
+    def _refresh_after_item_action(self) -> None:
+        # Keep any open folder drop-down open, mirroring the Android launcher
+        self._home_launcher.refresh(preserve_folder=True)
+        self._populate_apps(self.apps_search.get_text())
+
+    def _make_drawer_folder_row(self, slot: dict, slot_index: int) -> Gtk.ListBoxRow:
+        inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        title = Gtk.Label(label=slot.get('label', ''), xalign=0)
+        title.add_css_class('app-name')
+        indicator = Gtk.Label(label='⌄' if slot_index == self._drawer_open_folder else '›')
+        indicator.add_css_class('dim-label')
+        inner.append(title)
+        inner.append(indicator)
+        inner.set_hexpand(True)
+
+        btn = Gtk.Button()
+        btn.add_css_class('flat')
+        btn.add_css_class('app-entry')
+        btn.set_child(inner)
+        btn.connect('clicked', lambda _b, i=slot_index: self._toggle_drawer_folder(i))
+
+        row = Gtk.ListBoxRow(selectable=False, activatable=False)
+        row.set_child(btn)
+        return row
+
+    def _make_drawer_member_row(self, slot_index: int, member_index: int, member: dict) -> Gtk.ListBoxRow:
+        title = Gtk.Label(label=member.get('label', ''), xalign=0)
+        title.add_css_class('app-name')
+        title.set_hexpand(True)
+
+        btn = Gtk.Button()
+        btn.add_css_class('flat')
+        btn.add_css_class('app-entry')
+        btn.add_css_class('folder-member')
+        btn.set_child(title)
+
+        def _launch(_b: Gtk.Button) -> None:
+            self._drawer_open_folder = None
+            self._populate_apps(self.apps_search.get_text())
+            self._launch_slot({'type': 'app', **member})
+
+        btn.connect('clicked', _launch)
+        self._add_long_press(
+            btn, lambda w: self.item_actions.show_member_menu(w, slot_index, member_index))
+
+        row = Gtk.ListBoxRow(selectable=False, activatable=False)
+        row.set_child(btn)
+        return row
+
+    def _toggle_drawer_folder(self, slot_index: int) -> None:
+        opening = self._drawer_open_folder != slot_index
+        self._drawer_open_folder = slot_index if opening else None
+        self._populate_apps(self.apps_search.get_text())
+        if opening:
+            GLib.idle_add(self._center_drawer_folder)
+
+    def _center_drawer_folder(self) -> bool:
+        # Scroll so the folder row plus its drop-down sit vertically centered
+        header = self._drawer_folder_header
+        if header is None or self._drawer_open_folder is None:
+            return GLib.SOURCE_REMOVE
+        slot = self.config.home_slots[self._drawer_open_folder]
+        row_h = header.get_height()
+        if row_h <= 0:
+            return GLib.SOURCE_CONTINUE
+        block_h = row_h * (1 + len(slot.get('folder') or []))
+        view_h = self.apps_scroller.get_height()
+        alloc = header.get_allocation()
+        block_h = min(block_h, view_h)
+        target = alloc.y - max(0, (view_h - block_h) // 2)
+        adj = self.apps_scroller.get_vadjustment()
+        adj.set_value(max(0.0, float(target)))
+        return GLib.SOURCE_REMOVE
+
+    def _add_long_press(self, widget: Gtk.Widget, callback) -> None:
+        def _on_long_press(gesture: Gtk.GestureLongPress, _x: float, _y: float) -> None:
+            # Claim the sequence so releasing doesn't also fire the row's click
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+            callback(widget)
+
+        long_press = Gtk.GestureLongPress.new()
+        long_press.set_touch_only(False)
+        long_press.connect('pressed', _on_long_press)
+        widget.add_controller(long_press)
+        right_click = Gtk.GestureClick.new()
+        right_click.set_button(3)
+        right_click.connect('pressed', lambda _g, _n, _x, _y, w=widget: callback(w))
+        widget.add_controller(right_click)
 
     def _make_settings_row(self) -> Gtk.ListBoxRow:
         title = Gtk.Label(label='Launcher Settings', xalign=0)
@@ -888,62 +1055,6 @@ class ShellWindow(Adw.ApplicationWindow):
         maker = row_maker if callable(row_maker) else self._make_app_row
         for entry in entries:
             list_box.append(maker(entry))
-
-    def _pin_app(self, app_id: str) -> None:
-        pinned = list(self.config.pinned)
-        if app_id not in pinned:
-            pinned.append(app_id)
-            self.config.set_pinned(pinned)
-            self._populate_apps(self.apps_search.get_text())
-            self._show_status('Pinned to home.')
-
-    def _unpin_app(self, app_id: str) -> None:
-        pinned = [p for p in self.config.pinned if p != app_id]
-        self.config.set_pinned(pinned)
-        self._populate_apps(self.apps_search.get_text())
-
-    def _hide_app(self, app_id: str) -> None:
-        hidden = list(self.config.hidden_apps)
-        if app_id not in hidden:
-            hidden.append(app_id)
-            self.config.set_hidden_apps(hidden)
-        self._populate_apps(self.apps_search.get_text())
-        self._refresh_hidden_list()
-        self._show_status('App hidden from drawer.')
-
-    def _unhide_app(self, app_id: str) -> None:
-        hidden = [h for h in self.config.hidden_apps if h != app_id]
-        self.config.set_hidden_apps(hidden)
-        self._populate_apps(self.apps_search.get_text())
-        self._refresh_hidden_list()
-
-    def _refresh_hidden_list(self) -> None:
-        if not hasattr(self, '_hidden_list_box'):
-            return
-        box: Gtk.Box = self._hidden_list_box
-        child = box.get_first_child()
-        while child is not None:
-            nxt = child.get_next_sibling()
-            box.remove(child)
-            child = nxt
-        by_id = {e.app_id: e for e in self.app_index.entries}
-        for app_id in self.config.hidden_apps:
-            entry = by_id.get(app_id)
-            name = entry.name if entry else app_id
-            lbl = Gtk.Label(label=name, xalign=0, hexpand=True)
-            lbl.add_css_class('dim-label')
-            show_btn = Gtk.Button(label='Show')
-            show_btn.add_css_class('flat')
-            show_btn.add_css_class('action-link')
-            show_btn.connect('clicked', lambda _b, eid=app_id: self._unhide_app(eid))
-            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            row.append(lbl)
-            row.append(show_btn)
-            box.append(row)
-        if not self.config.hidden_apps:
-            placeholder = Gtk.Label(label='No apps hidden.', xalign=0)
-            placeholder.add_css_class('dim-label')
-            box.append(placeholder)
 
     def _on_key_pressed(self, _ctrl: Gtk.EventControllerKey, keyval: int, *_) -> bool:
         self._reset_idle_timer()
@@ -1051,31 +1162,11 @@ class ShellWindow(Adw.ApplicationWindow):
         launch_btn.add_css_class('app-entry')
         launch_btn.set_child(content)
         launch_btn.connect('clicked', lambda _b, e=entry: self._launch_entry(e))
-
-        is_pinned = entry.app_id in self.config.pinned
-        pin_btn = Gtk.Button(label='−' if is_pinned else '+')
-        pin_btn.add_css_class('flat')
-        pin_btn.add_css_class('dim-label')
-        pin_btn.set_valign(Gtk.Align.CENTER)
-        if is_pinned:
-            pin_btn.connect('clicked', lambda _b, eid=entry.app_id: self._unpin_app(eid))
-        else:
-            pin_btn.connect('clicked', lambda _b, eid=entry.app_id: self._pin_app(eid))
-
-        hide_btn = Gtk.Button(label='⊘')
-        hide_btn.add_css_class('flat')
-        hide_btn.add_css_class('dim-label')
-        hide_btn.set_valign(Gtk.Align.CENTER)
-        hide_btn.set_tooltip_text('Hide from drawer')
-        hide_btn.connect('clicked', lambda _b, eid=entry.app_id: self._hide_app(eid))
-
-        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        outer.append(launch_btn)
-        outer.append(pin_btn)
-        outer.append(hide_btn)
+        self._add_long_press(
+            launch_btn, lambda w, e=entry: self.item_actions.show_app_menu(w, e))
 
         row = Gtk.ListBoxRow(selectable=False, activatable=False)
-        row.set_child(outer)
+        row.set_child(launch_btn)
         return row
 
     def _launch_entry(self, entry: AppEntry) -> None:
@@ -1086,33 +1177,43 @@ class ShellWindow(Adw.ApplicationWindow):
         else:
             self._show_status(f'Failed to launch {entry.name}: {error}')
 
-    def _on_home_search_changed(self, entry: Gtk.SearchEntry) -> None:
-        text = entry.get_text().strip()
-        if not text:
-            return
+    def _on_apps_search_changed(self, entry: Gtk.SearchEntry) -> None:
+        text = entry.get_text()
         self._populate_apps(text)
+        # Auto-launch the single result while typing, when enabled
+        query = text.strip()
+        if (self.config.search_auto_launch and query and not query.startswith('!')
+                and len(self._last_search_results) == 1):
+            entry.set_text('')
+            self._launch_entry(self._last_search_results[0])
 
-    def _on_home_search_activate(self, entry: Gtk.SearchEntry) -> None:
+    def _on_apps_search_activate(self, entry: Gtk.SearchEntry) -> None:
         query = entry.get_text().strip()
         if not query:
             return
-
-        results = self.app_index.search(query)
-        if len(results) == 1 or (results and results[0].name.casefold() == query.casefold()):
-            self._launch_entry(results[0])
+        # `!query` → web search; a query with zero app matches falls back too
+        if query.startswith('!'):
+            self._open_web_search(query[1:].strip())
+            entry.set_text('')
             return
-
-        self.apps_search.set_text(query)
-        self._populate_apps(query)
-        self.stack.set_visible_child_name('apps')
-
-    def _on_apps_search_changed(self, entry: Gtk.SearchEntry) -> None:
-        self._populate_apps(entry.get_text())
-
-    def _on_apps_search_activate(self, entry: Gtk.SearchEntry) -> None:
-        results = self.app_index.search(entry.get_text())
+        results = self._last_search_results
         if results:
+            entry.set_text('')
             self._launch_entry(results[0])
+        else:
+            self._open_web_search(query)
+            entry.set_text('')
+
+    def _open_web_search(self, query: str) -> None:
+        if not query:
+            return
+        from gi.repository import Gio
+        from urllib.parse import quote_plus
+        try:
+            Gio.AppInfo.launch_default_for_uri(_WEB_SEARCH_URL + quote_plus(query), None)
+            self._show_status(f'Searching the web for {query}...')
+        except GLib.Error as error:
+            self._show_status(f'No browser available: {error.message}')
 
     def _on_theme_changed(self, dropdown: Gtk.DropDown, _paramspec: object) -> None:
         theme_key = list(THEME_PRESETS)[dropdown.get_selected()]

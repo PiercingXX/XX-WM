@@ -72,6 +72,7 @@ DEFAULT_CONFIG = {
     'update_last_check': 0.0,
     'update_snooze_until': 0.0,
     'home_slots': [],
+    'search_auto_launch': False,
     'default_layout_applied': False,
     'app_labels': {},
     'muted_apps': {},
@@ -311,12 +312,18 @@ class ShellConfig:
                 continue
         return out
 
+    @staticmethod
+    def _norm_app_id(app_id: str) -> str:
+        # Mute keys come from drawer app ids (with .desktop) and notification
+        # desktop-entry hints (usually without); compare them stripped.
+        return app_id[:-8] if app_id.endswith('.desktop') else app_id
+
     def set_app_muted(self, app_id: str, until_epoch: float, now: float | None = None) -> None:
         if now is None:
             import time
             now = time.time()
         muted = {k: v for k, v in self.muted_apps.items() if v > now}
-        muted[app_id] = float(until_epoch)
+        muted[self._norm_app_id(app_id)] = float(until_epoch)
         self.data['muted_apps'] = muted
         self.save()
 
@@ -326,7 +333,19 @@ class ShellConfig:
         if now is None:
             import time
             now = time.time()
-        return self.muted_apps.get(app_id, 0.0) > now
+        wanted = self._norm_app_id(app_id).casefold()
+        return any(
+            until > now and self._norm_app_id(key).casefold() == wanted
+            for key, until in self.muted_apps.items()
+        )
+
+    @property
+    def search_auto_launch(self) -> bool:
+        return bool(self.data.get('search_auto_launch', False))
+
+    def set_search_auto_launch(self, enabled: bool) -> None:
+        self.data['search_auto_launch'] = bool(enabled)
+        self.save()
 
     @property
     def custom_background(self) -> str | None:

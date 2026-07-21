@@ -31,7 +31,7 @@ Text-first. No icon grids, no app icons on home. Low visual noise, local-only cu
 - Search can **auto-launch the single result**; `!query` falls back to web search.
 - Sort: a single toggle cycling **A–Z ↔ install date** (default A–Z). No size or usage sorts.
 - A–Z character jump strip on the right edge.
-- Row order: folders first, then apps, then a synthetic **Launcher Settings** entry always last.
+- Row order: folders first, then pinned apps (in pin order), then the rest per the active sort, then a synthetic **Launcher Settings** entry always last.
 - **Folder rows expand inline**: tapping a folder drops its members open directly under the row as an indented drop-down; tapping it again (or a swipe right) collapses it. On expand, the folder row plus its members scroll to sit vertically centered. The expansion survives list refreshes and collapses automatically if the folder disappears.
 - **Search-only items**: hidden apps, apps occupying home slots, and folder members are absent from the browse list but all surface in search results.
 - Other launchers/shells never appear in the drawer at all, not even in search.

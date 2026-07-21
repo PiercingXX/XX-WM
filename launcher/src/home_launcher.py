@@ -100,12 +100,14 @@ class HomeLauncher(Gtk.Box):
 
     def __init__(self, open_dialer_fn: Callable[[], None] | None = None,
                  get_slots_fn: Callable[[], list[dict]] | None = None,
-                 on_launch_slot: Callable[[dict], None] | None = None) -> None:
+                 on_launch_slot: Callable[[dict], None] | None = None,
+                 on_member_long_press: Callable[[Gtk.Widget, int, int], None] | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_vexpand(True)
         self._open_dialer = open_dialer_fn
         self._get_slots = get_slots_fn or (lambda: [])
         self._on_launch_slot = on_launch_slot or (lambda slot: None)
+        self._on_member_long_press = on_member_long_press
         self._open_folder_index: int | None = None
         self._build()
 
@@ -121,8 +123,9 @@ class HomeLauncher(Gtk.Box):
         self._build()
         return True
 
-    def refresh(self) -> None:
-        self._open_folder_index = None
+    def refresh(self, preserve_folder: bool = False) -> None:
+        if not preserve_folder:
+            self._open_folder_index = None
         self._build()
 
     def _build(self) -> None:
@@ -150,10 +153,22 @@ class HomeLauncher(Gtk.Box):
                     self.append(self._make_member_dropdown(slot))
 
     def _make_member_dropdown(self, slot: dict) -> Gtk.Widget:
+        slot_index = self._open_folder_index
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        for member in slot.get('folder', []):
-            box.append(self._make_row(member.get('label', ''),
-                                      lambda m=member: self._tap_member(m)))
+        for m_idx, member in enumerate(slot.get('folder', [])):
+            row = self._make_row(member.get('label', ''),
+                                 lambda m=member: self._tap_member(m))
+            if self._on_member_long_press is not None:
+                def _on_long_press(gesture: Gtk.GestureLongPress, _x: float, _y: float,
+                                   w: Gtk.Widget = row, s: int = slot_index, m: int = m_idx) -> None:
+                    gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+                    self._on_member_long_press(w, s, m)
+
+                long_press = Gtk.GestureLongPress.new()
+                long_press.set_touch_only(False)
+                long_press.connect('pressed', _on_long_press)
+                row.add_controller(long_press)
+            box.append(row)
         revealer = Gtk.Revealer(
             transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
             transition_duration=120,

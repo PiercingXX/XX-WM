@@ -13,6 +13,13 @@ from config import DEFAULT_CONFIG, ShellConfig
 class TestShellConfig:
     """Tests for ShellConfig class."""
 
+    @pytest.fixture(autouse=True)
+    def _isolated_home(self, tmp_path, monkeypatch):
+        # ShellConfig() reads ~/.config/piercing-shell/config.json in its
+        # constructor; point HOME at a temp dir so the dev box's real shell
+        # config never leaks into tests.
+        monkeypatch.setenv('HOME', str(tmp_path / 'home'))
+
     def test_default_config_has_home_slots(self):
         """DEFAULT_CONFIG must include home_slots key."""
         assert 'home_slots' in DEFAULT_CONFIG
