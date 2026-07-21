@@ -49,6 +49,7 @@ python.install_sources(
     'src/calendar_grid.py',
     'src/dnd.py',
     'src/sound.py',
+    'src/weather.py',
   ],
   subdir: shell_subdir,
 )

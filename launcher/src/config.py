@@ -88,6 +88,8 @@ DEFAULT_CONFIG = {
         'weather': {'enabled': True, 'order': 3, 'tap': 'refresh'},
         'battery': {'enabled': True, 'order': 4, 'tap': 'default'},
     },
+    'weather_lat': None,
+    'weather_lon': None,
 }
 
 
@@ -369,6 +371,37 @@ class ShellConfig:
     def set_search_auto_launch(self, enabled: bool) -> None:
         self.data['search_auto_launch'] = bool(enabled)
         self.save()
+
+    @property
+    def widgets(self) -> dict[str, dict]:
+        """Widget config merged over defaults; unknown keys ignored."""
+        defaults = DEFAULT_CONFIG['widgets']
+        val = self.data.get('widgets')
+        merged: dict[str, dict] = {}
+        for key, default in defaults.items():
+            entry = dict(default)
+            if isinstance(val, dict) and isinstance(val.get(key), dict):
+                user = val[key]
+                if isinstance(user.get('enabled'), bool):
+                    entry['enabled'] = user['enabled']
+                try:
+                    entry['order'] = int(user.get('order', entry['order']))
+                except (TypeError, ValueError):
+                    pass
+                tap = user.get('tap')
+                if tap in ('default', 'none', 'refresh') or (
+                    isinstance(tap, dict) and tap.get('app')
+                ):
+                    entry['tap'] = tap
+            merged[key] = entry
+        return merged
+
+    def ordered_widgets(self) -> list[tuple[str, dict]]:
+        widgets = self.widgets
+        return sorted(
+            ((k, v) for k, v in widgets.items() if v.get('enabled')),
+            key=lambda item: item[1].get('order', 99),
+        )
 
     @property
     def custom_font_family(self) -> str | None:

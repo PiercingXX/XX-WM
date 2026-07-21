@@ -151,6 +151,9 @@ class ShellWindow(Adw.ApplicationWindow):
         self.date_label = Gtk.Label(xalign=0)
         self.date_label.add_css_class('display-date')
 
+        self.weather_label = Gtk.Label(xalign=0)
+        self.weather_label.add_css_class('display-date')
+
         self.status_strip = Gtk.Label(xalign=0)
         self.status_strip.add_css_class('dim-label')
 
@@ -321,25 +324,31 @@ class ShellWindow(Adw.ApplicationWindow):
             Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 3,
         )
 
-        # --- Top 1/3: clock / date / status — vertically centered ---
+        # --- Top 1/3: widget block — config-driven, vertically centered ---
         self.clock_label.set_xalign(0.5)
         self.date_label.set_xalign(0.5)
+        self.weather_label.set_xalign(0.5)
         self.status_strip.set_xalign(0.5)
 
-        # Double-tap clock → lock screen
-        double_tap = Gtk.GestureClick.new()
-        double_tap.connect('pressed', self._on_clock_tapped)
-        self._clock_tap_count = 0
         self._clock_tap_timer: int | None = None
-        self.clock_label.add_controller(double_tap)
 
-        # Widget order per design.md: time, date, (weather — WS 5.4), battery
+        widget_map = {
+            'time': self.clock_label,
+            'date': self.date_label,
+            'weather': self.weather_label,
+            'battery': self.status_strip,
+        }
         clock_inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         clock_inner.set_halign(Gtk.Align.FILL)
         clock_inner.set_hexpand(True)
-        clock_inner.append(self.clock_label)
-        clock_inner.append(self.date_label)
-        clock_inner.append(self.status_strip)
+        for key, conf in self.config.ordered_widgets():
+            widget = widget_map.get(key)
+            if widget is None:
+                continue
+            self._wire_widget_tap(widget, key, conf.get('tap', 'default'))
+            clock_inner.append(widget)
+
+        self._init_weather()
 
         # Equal spacers above and below clock_inner → vertically centered in top pane
         top_pane = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -502,9 +511,73 @@ class ShellWindow(Adw.ApplicationWindow):
         except FileNotFoundError:
             pass
 
-    def _on_clock_tapped(self, _gesture: Gtk.GestureClick, n_press: int, _x: float, _y: float) -> None:
+    def _wire_widget_tap(self, widget: Gtk.Widget, key: str, tap: object) -> None:
+        if key == 'time':
+            # The clock keeps double-tap-to-lock; a single tap (after the
+            # double-tap window passes) runs the configured action
+            tap_gesture = Gtk.GestureClick.new()
+            tap_gesture.connect(
+                'pressed',
+                lambda _g, n, _x, _y, t=tap: self._on_clock_tapped(n, t))
+            widget.add_controller(tap_gesture)
+            return
+        if tap == 'none':
+            return
+        gesture = Gtk.GestureClick.new()
+        gesture.connect(
+            'pressed',
+            lambda _g, _n, _x, _y, k=key, t=tap: self._dispatch_widget_tap(k, t))
+        widget.add_controller(gesture)
+
+    def _on_clock_tapped(self, n_press: int, tap: object) -> None:
         if n_press == 2:
+            if self._clock_tap_timer is not None:
+                GLib.source_remove(self._clock_tap_timer)
+                self._clock_tap_timer = None
             self._show_lock_screen()
+            return
+        if n_press == 1 and tap != 'none' and self._clock_tap_timer is None:
+            def _fire() -> bool:
+                self._clock_tap_timer = None
+                self._dispatch_widget_tap('time', tap)
+                return GLib.SOURCE_REMOVE
+            self._clock_tap_timer = GLib.timeout_add(280, _fire)
+
+    def _dispatch_widget_tap(self, key: str, tap: object) -> None:
+        if isinstance(tap, dict) and tap.get('app'):
+            self._launch_app_id(str(tap['app']))
+            return
+        if tap == 'refresh' or (key == 'weather' and tap == 'default'):
+            self._refresh_weather(force=True)
+            return
+        if tap != 'default':
+            return
+        if key == 'time':
+            self._launch_first_matching('clock')
+        elif key == 'date':
+            self._launch_first_matching('calendar')
+        elif key == 'battery':
+            self.stack.set_visible_child_name('settings')
+
+    def _launch_first_matching(self, needle: str) -> None:
+        entry = next(
+            (e for e in self.app_index.entries if needle in e.name.casefold()), None)
+        if entry is not None:
+            self._launch_entry(entry)
+
+    def _init_weather(self) -> None:
+        from weather import WeatherProvider, PLACEHOLDER
+        self._weather = WeatherProvider(self.config)
+        self.weather_label.set_text(PLACEHOLDER)
+        self._refresh_weather()
+        GLib.timeout_add_seconds(900, self._tick_weather)
+
+    def _tick_weather(self) -> bool:
+        self._refresh_weather()
+        return True
+
+    def _refresh_weather(self, force: bool = False) -> None:
+        self._weather.refresh(self.weather_label.set_text, force=force)
 
     def _show_lock_screen(self) -> None:
         lock = getattr(self, '_lock_screen', None)
