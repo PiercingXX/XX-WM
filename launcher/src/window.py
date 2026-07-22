@@ -24,6 +24,12 @@ from system_status import status_line
 
 _PAGE_ORDER = ['home', 'apps', 'settings']
 
+# Home side-swipe gestures the user can bind to an app in Settings
+_GESTURE_TITLES = {
+    'swipe_left_home': 'Swipe left',
+    'swipe_right_home': 'Swipe right',
+}
+
 _UPDATE_NOTIF_ID = 999901
 
 _WEB_SEARCH_URL = 'https://duckduckgo.com/?q='
@@ -65,6 +71,10 @@ class ShellWindow(Adw.ApplicationWindow):
 
         self._idle_timer_id: int | None = None
         self._pick_slot_mode = False
+        # When set to a gesture key ('swipe_left_home'/'swipe_right_home'),
+        # the next drawer tap binds that app to the gesture instead of launching
+        self._pick_gesture_key: str | None = None
+        self._gesture_binding_labels: dict[str, Gtk.Label] = {}
         self._drawer_open_folder: int | None = None
         self._drawer_folder_header: Gtk.ListBoxRow | None = None
         self._last_search_results: list[AppEntry] = []
@@ -92,12 +102,9 @@ class ShellWindow(Adw.ApplicationWindow):
             transition_duration=200,
             transition_type=Gtk.StackTransitionType.NONE,
         )
-        # Leaving the drawer disarms slot-pick mode so a later tap launches
+        # Leaving the drawer disarms the pick modes so a later tap launches
         self.stack.connect(
-            'notify::visible-child-name',
-            lambda stack, _p: setattr(self, '_pick_slot_mode', False)
-            if stack.get_visible_child_name() != 'apps' else None,
-        )
+            'notify::visible-child-name', self._on_stack_page_changed)
 
         self.item_actions = AppItemActions(
             self.config,
@@ -216,6 +223,13 @@ class ShellWindow(Adw.ApplicationWindow):
                     'swipe_left_home' if vel_x < -200 else 'swipe_right_home')
                 if action != 'none':
                     self._dispatch_gesture_action(action)
+            return
+        # Settings is a leaf page: a horizontal swipe from either edge is an
+        # unconditional "back to home", so there is always a way out by gesture
+        if current == 'settings' and abs(vel_x) > 200:
+            self._swipe_navigated = True
+            self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_RIGHT)
+            self.stack.set_visible_child_name('home')
             return
         idx = _PAGE_ORDER.index(current) if current in _PAGE_ORDER else 0
         if vel_x < -200 and idx < len(_PAGE_ORDER) - 1:
@@ -785,12 +799,75 @@ class ShellWindow(Adw.ApplicationWindow):
         adj = self.apps_scroller.get_vadjustment()
         adj.set_value(max(0.0, alloc.y))
 
+    def _on_stack_page_changed(self, stack: Gtk.Stack, _param: object) -> None:
+        # Leaving the drawer disarms both pick modes so a later tap launches
+        if stack.get_visible_child_name() != 'apps':
+            self._pick_slot_mode = False
+            self._pick_gesture_key = None
+
+    def _gesture_binding_text(self, key: str) -> str:
+        action = self.gesture_config.get(key) or 'none'
+        if action == 'none':
+            return 'Not set'
+        if action == 'camera':
+            return 'Camera'
+        if action.startswith('launch:'):
+            app_id = action[len('launch:'):]
+            for entry in self.app_index.entries:
+                if entry.app_id == app_id:
+                    return self.config.label_for(app_id, entry.name)
+            return app_id
+        return action.replace('_', ' ').title()
+
+    def _refresh_gesture_labels(self) -> None:
+        for key, label in self._gesture_binding_labels.items():
+            label.set_text(self._gesture_binding_text(key))
+
+    def _build_gestures_card(self) -> Gtk.Widget:
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        card.add_css_class('settings-card')
+        for key, title in _GESTURE_TITLES.items():
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+
+            name = Gtk.Label(label=title, xalign=0)
+            name.set_hexpand(True)
+
+            binding = Gtk.Label(label=self._gesture_binding_text(key), xalign=1)
+            binding.add_css_class('dim-label')
+            self._gesture_binding_labels[key] = binding
+
+            change = Gtk.Button(label='Change')
+            change.add_css_class('flat')
+            change.add_css_class('action-link')
+            change.connect('clicked', lambda _b, k=key, t=title: self._pick_gesture_app(k, t))
+
+            clear = Gtk.Button(label='Clear')
+            clear.add_css_class('flat')
+            clear.add_css_class('dim-label')
+            clear.connect('clicked', lambda _b, k=key: self._clear_gesture_app(k))
+
+            row.append(name)
+            row.append(binding)
+            row.append(change)
+            row.append(clear)
+            card.append(row)
+        return card
+
+    def _pick_gesture_app(self, key: str, title: str) -> None:
+        self._pick_gesture_key = key
+        self.stack.set_visible_child_name('apps')
+        self._show_status(f'Tap an app to bind to {title}.')
+
+    def _clear_gesture_app(self, key: str) -> None:
+        self.gesture_config.set(key, 'none')
+        self._refresh_gesture_labels()
+
     def _build_settings_page(self) -> Gtk.Widget:
         from importlib.metadata import version as get_version
         try:
             shell_version = get_version('piercing-shell')
         except Exception:
-            shell_version = '0.1.0'
+            shell_version = '0.1.1'
 
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -945,8 +1022,13 @@ class ShellWindow(Adw.ApplicationWindow):
         about_card.append(version_label)
         about_card.append(device_label)
 
+        gestures_title = Gtk.Label(label='Gestures', xalign=0)
+        gestures_title.add_css_class('section-title')
+
         box.append(system_title)
         box.append(system_card)
+        box.append(gestures_title)
+        box.append(self._build_gestures_card())
         box.append(wifi_title)
         box.append(wifi_card)
         box.append(bt_title)
@@ -1735,6 +1817,15 @@ class ShellWindow(Adw.ApplicationWindow):
         if self._pick_slot_mode:
             self._pick_slot_mode = False
             self._add_app_slot(entry)
+            return
+        if self._pick_gesture_key:
+            key = self._pick_gesture_key
+            self._pick_gesture_key = None
+            self.gesture_config.set(key, f'launch:{entry.app_id}')
+            self._refresh_gesture_labels()
+            self.stack.set_visible_child_name('settings')
+            name = self.config.label_for(entry.app_id, entry.name)
+            self._show_status(f'{name} bound to {_GESTURE_TITLES[key]}.')
             return
         if self.focus_state.is_paused_app(entry.app_id):
             self._show_focus_notice(self.config.label_for(entry.app_id, entry.name))
