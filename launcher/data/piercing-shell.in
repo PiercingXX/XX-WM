@@ -28,4 +28,19 @@ if command -v lisgd >/dev/null 2>&1; then
     fi
 fi
 
+# gtk4-layer-shell MUST be loaded before libgtk-4, or every layer surface
+# (shade, lock screen, switcher, call UI) silently falls back to a normal
+# decorated window and the home screen falls back to fullscreen. Python
+# imports GTK first, so preload the library. Path differs by distro/arch —
+# resolve it via ldconfig, then a multiarch glob.
+_ls_lib=$(ldconfig -p 2>/dev/null | awk '/libgtk4-layer-shell\.so\.0/ {print $NF; exit}')
+if [ -z "$_ls_lib" ]; then
+    for _p in /usr/lib/libgtk4-layer-shell.so.0 /usr/lib/*/libgtk4-layer-shell.so.0; do
+        [ -e "$_p" ] && _ls_lib="$_p" && break
+    done
+fi
+if [ -n "$_ls_lib" ]; then
+    export LD_PRELOAD="${LD_PRELOAD:+$LD_PRELOAD:}$_ls_lib"
+fi
+
 exec @python@ @shell_dir@/main.py "$@"
