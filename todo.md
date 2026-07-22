@@ -194,6 +194,24 @@ Extends 9.4 — this is the canonical list. Built-in already: **Phone** (dialer/
 
 1 → 3 → 2 → 13+7 (DnD state first, sounds consume it) → 10.1/10.2 (early, then continuous) → 12 → 11 → 4 → 8 → 5 → 14 → 6 → 15 → 16 → 9+17 → 10.3 → 18 last. Workstream 1 first: everything else touches config, and the slot migration is the riskiest schema change — land it while the surface area is small. 15 late on purpose: shrink the settings page only after the config keys it defers to (3/4/5/7/8) exist. 18 is explicitly last.
 
+## Device bring-up — findings & open items (2026-07-21 session)
+
+First real on-device run: x86 Arch tablet (`dr3k@192.168.1.129`, GNOME/GDM host, PiercingXX installed as a selectable Wayland session) and the FLX1 phone. Many fixes landed (see git log: layer-shell preload, auto-maximize, install layout, `.desktop` session entry, DisplayManager wake, wizard fit/PIN/themes, gesture parity, drawer, power button, keyboard-on-swipe, Log out, touchscreen detection, input-group). **Open items below.**
+
+### Open — do next
+- [ ] **Keyboard: close on tap outside a text entry.** squeekboard stays up after focus leaves a field; hide it (`sm.puri.OSK0 SetVisible false`, or drop the input-method focus) when a tap lands outside any editable widget.
+- [ ] **Fix the floating power menu.** The shade's ⏻ opened a *floating* window, not full-screen. `power_menu.py` has the layer-shell code and the installed wrapper does apply `LD_PRELOAD` — so on a **stable** login it should be full-screen. Verify on a session that stays up; if it still floats with `LD_PRELOAD` live and lisgd running, it's a real PowerMenu bug (compare its layer-shell init/timing against `notification_shade.py`, which works).
+- [ ] **Recents / "apps background thingy" (app switcher).** Foundation **verified** on-device: `python-pywayland` scanning `/usr/share/wlr-protocols/unstable/wlr-foreign-toplevel-management-unstable-v1.xml` (+ core `wayland.xml`) connects to phoc and lists/activates/closes toplevels. Build `toplevel_manager.py` (pywayland client on a GLib fd-watch; `list()`, `activate()`, `close()`; filter out own `io.piercingxx.PiercingShell`) and wire into `app_switcher.py`. **Style:** user picked cached-snapshot thumbnails, but later set a "keep it minimal, tablet is underpowered" directive — lean to lightweight **name+icon cards** unless they reconfirm snapshots (grim capture-on-leave + cache is the snapshot path; true live previews are impossible for an external client). See [[minimal-underpowered-tablet]].
+- [ ] **GDM Colemak OSK.** GDM greeter uses GNOME's own OSK (JSON in `/usr/share/gnome-shell/osk-layouts/`, not squeekboard). Adapt the user's `piercingxx-keyboard` GNOME OSK layout to Colemak; if none exists, new repo + build.
+- [ ] **`install.sh`: add the shell user to the `input` group.** Real setup gap — lisgd (touchscreen) and DisplayManager (power/volume keys) read evdev directly and silently do nothing without it. Was the root cause of "gestures don't work over apps" and "power button doesn't open the menu" on the tablet.
+- [ ] **App preloading → opt-in/off by default.** `PIERCING_SESSION` warms swipe-bound apps (camera) into RAM; counter to minimalism on weak hardware. Gate behind a config key, default off.
+- [ ] **Confirm on a stable login:** lisgd running + bound to the touchscreen (gestures over apps), shade full-width, apps maximized, power-key long-press → menu. (`dr3k` is now in `input`; needs a clean session to verify.)
+
+### Device facts (reference)
+- **Tablet:** panel reports as `DSI-1` 1200×1920 → scale **1.5** (collides with the FP5's `DSI-1` name — phoc.ini should become device-selected). Touchscreen **FTSC1000** on `event3`, detected by `INPUT_PROP_DIRECT` (0x2), not by name. `wlopm` **not** installed (DisplayManager tracks blank state internally). `lisgd` built from source (`~mil/lisgd`), not in Arch repos.
+- **phoc 0.56 / wlroots 0.20:** supports `wlr-foreign-toplevel-management` (README corrected). Auto-maximize is the **`sm.puri.phoc auto-maximize` GSetting**, not a phoc.ini key. `gtk4-layer-shell` must be `LD_PRELOAD`ed before libgtk-4 or all layer surfaces silently float.
+- **FLX1 phone:** session switch failed (black screen); phone sits in **MediaTek Preloader/BROM** mode, recoverable via mtkclient. FuriOS's systemd 261-rc3 has a broken `systemd-sysusers` that fails apt postinsts (pipewire, wpasupplicant) — workaround is appending `|| true` to the `systemd-sysusers` line in the failing `.postinst`, then `dpkg --configure -a`. Don't `apt upgrade` the held packages until FuriLabs fixes it.
+
 ## Blocked — do NOT attempt (needs hardware or the user)
 
 - **Flashing / device bring-up** (Fairphone 5 fastboot, Librem 5 session swap, FLX1 research) — `devices/*/notes.md` hold the checklists.
