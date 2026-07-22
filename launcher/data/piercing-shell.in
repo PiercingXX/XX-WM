@@ -11,12 +11,19 @@ fi
 # swipes work while any app is focused — each binding feeds the shell IPC.
 # Override autodetection with PIERCING_TOUCH_DEV=/dev/input/eventN.
 if command -v lisgd >/dev/null 2>&1; then
-    _touch_dev=${PIERCING_TOUCH_DEV:-$(awk '
-        /^N:/ { name = tolower($0) }
-        /^H:/ && name ~ /touch/ {
-            for (i = 1; i <= NF; i++)
-                if ($i ~ /^event/) { print "/dev/input/" $i; exit }
-        }' /proc/bus/input/devices)}
+    _touch_dev=${PIERCING_TOUCH_DEV:-}
+    if [ -z "$_touch_dev" ]; then
+        # Detect a touchscreen by INPUT_PROP_DIRECT (0x2), not by name — the
+        # controller may be called FTSC1000 / Goodix / Elan, never "touch".
+        for _sys in /sys/class/input/event*; do
+            _props=$(cat "$_sys/device/properties" 2>/dev/null)
+            [ -z "$_props" ] && continue
+            if [ "$(( 0x$_props & 2 ))" -ne 0 ] 2>/dev/null; then
+                _touch_dev="/dev/input/$(basename "$_sys")"
+                break
+            fi
+        done
+    fi
     if [ -n "$_touch_dev" ] && [ -r "$_touch_dev" ]; then
         # Bottom-edge swipe up: a short flick raises the keyboard, a long
         # swipe goes home. Distance field: S = short, L = long.
