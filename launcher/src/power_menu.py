@@ -100,6 +100,10 @@ class PowerMenu(Gtk.Window):
         suspend_btn.add_css_class('power-menu-btn')
         suspend_btn.connect('clicked', lambda _: self._action('suspend'))
 
+        lock_btn = Gtk.Button(label='Log out')
+        lock_btn.add_css_class('power-menu-btn')
+        lock_btn.connect('clicked', lambda _: self._logout())
+
         restart_btn = Gtk.Button(label='Restart')
         restart_btn.add_css_class('power-menu-btn')
         restart_btn.connect('clicked', lambda _: self._action('reboot'))
@@ -114,6 +118,7 @@ class PowerMenu(Gtk.Window):
         cancel_btn.connect('clicked', lambda _: self._dismiss())
 
         card.append(suspend_btn)
+        card.append(lock_btn)
         card.append(restart_btn)
         card.append(poweroff_btn)
         card.append(cancel_btn)
@@ -133,6 +138,14 @@ class PowerMenu(Gtk.Window):
             subprocess.Popen(['systemctl', cmd], close_fds=True)
         except FileNotFoundError:
             pass
+
+    def _logout(self) -> None:
+        # Quitting the shell ends the phoc session (phoc -E child exits),
+        # returning to the display manager — the shell's "log out".
+        self._dismiss()
+        app = self.get_application()
+        if app is not None:
+            app.quit()
 
     def _on_scrim_tap(self, gesture: Gtk.GestureClick, _n: int, x: float, y: float) -> None:
         # Dismiss if tap lands outside the card widget

@@ -183,3 +183,9 @@ install_data(
   install_dir: join_paths(get_option('sysconfdir'), 'init.d'),
   install_mode: 'rwxr-xr-x',
 )
+
+# logind drop-in: let the shell own the power key instead of instant-poweroff
+install_data(
+  'data/logind/10-piercing-power.conf',
+  install_dir: join_paths(get_option('sysconfdir'), 'systemd', 'logind.conf.d'),
+)

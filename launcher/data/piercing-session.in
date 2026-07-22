@@ -27,6 +27,14 @@ export FONTCONFIG_PATH="@datadir@/piercing-shell/fonts:${FONTCONFIG_PATH:-/etc/f
 # Marks the real session — enables session-only behavior (app preloading)
 export PIERCING_SESSION=1
 
+# Phone behavior: every app opens maximized (full-screen), never floating.
+# phoc reads this from the sm.puri.phoc GSetting (not phoc.ini) — set it
+# before phoc starts. Persists in dconf, so this is idempotent.
+if command -v gsettings >/dev/null 2>&1 && \
+   gsettings list-schemas 2>/dev/null | grep -q '^sm\.puri\.phoc$'; then
+    gsettings set sm.puri.phoc auto-maximize true 2>/dev/null || true
+fi
+
 exec phoc \
   -C @datadir@/piercing-shell/phoc.ini \
   -E "@bindir@/piercing-shell"
