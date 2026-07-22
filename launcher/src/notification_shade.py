@@ -35,6 +35,16 @@ _SHADE_CSS = b"""
     letter-spacing: 0.18em;
     color: #9a9a9a;
 }
+.shade-power {
+    font-size: 15pt;
+    font-weight: 400;
+    letter-spacing: 0;
+    min-width: 40px;
+    padding: 0 8px;
+}
+.shade-power:hover {
+    color: #ff6b6b;
+}
 .notif-app {
     font-size: 10pt;
     color: #9a9a9a;
@@ -122,11 +132,13 @@ class Notification:
 class NotificationShade(Gtk.Window):
     def __init__(self, dnd_state: object | None = None,
                  focus_state: object | None = None,
-                 on_open_settings: object | None = None) -> None:
+                 on_open_settings: object | None = None,
+                 on_power: object | None = None) -> None:
         super().__init__(title='PiercingXX Shade')
         self._dnd = dnd_state
         self._focus = focus_state
         self._on_open_settings = on_open_settings
+        self._on_power = on_power
         self._clock_timer_id: int | None = None
         self._cal_year_month: tuple[int, int] | None = None
 
@@ -187,12 +199,21 @@ class NotificationShade(Gtk.Window):
         settings_btn.add_css_class('shade-header')
         settings_btn.connect('clicked', self._on_settings_clicked)
 
-        top_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        # Power button, top-right — suspend / restart / power off via PowerMenu
+        power_btn = Gtk.Button(label='⏻')
+        power_btn.add_css_class('flat')
+        power_btn.add_css_class('shade-header')
+        power_btn.add_css_class('shade-power')
+        power_btn.set_tooltip_text('Power')
+        power_btn.connect('clicked', self._on_power_clicked)
+
+        top_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         top_header.set_margin_top(6)
         self._datetime_btn.set_hexpand(True)
         self._datetime_btn.set_halign(Gtk.Align.START)
         top_header.append(self._datetime_btn)
         top_header.append(settings_btn)
+        top_header.append(power_btn)
 
         self._calendar_revealer = Gtk.Revealer(
             transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN,
@@ -282,6 +303,11 @@ class NotificationShade(Gtk.Window):
         self.hide_shade()
         if callable(self._on_open_settings):
             self._on_open_settings()
+
+    def _on_power_clicked(self, _btn: Gtk.Button) -> None:
+        self.hide_shade()
+        if callable(self._on_power):
+            self._on_power()
 
     def _toggle_calendar(self) -> None:
         showing = self._calendar_revealer.get_reveal_child()

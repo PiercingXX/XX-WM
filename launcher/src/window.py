@@ -30,6 +30,11 @@ _GESTURE_TITLES = {
     'swipe_right_home': 'Swipe right',
 }
 
+# Swipe-up velocity split: a gentle/short flick raises the keyboard, a
+# stronger/longer swipe opens the app drawer. Velocity-based since the
+# in-window GestureSwipe reports velocity, not distance (lisgd does distance).
+_LONG_SWIPE_UP_VEL = 900
+
 _UPDATE_NOTIF_ID = 999901
 
 _WEB_SEARCH_URL = 'https://duckduckgo.com/?q='
@@ -199,8 +204,12 @@ class ShellWindow(Adw.ApplicationWindow):
             if vel_y > 300:
                 self._dispatch_gesture_action(
                     self.gesture_config.get('swipe_down_top') or 'notification_shade')
-            elif vel_y < -400:
+            elif vel_y < -_LONG_SWIPE_UP_VEL:
+                # Long/fast swipe up → app drawer
                 self.stack.set_visible_child_name('apps')
+            elif vel_y < -300:
+                # Short swipe up → on-screen keyboard
+                self._show_keyboard()
             return
         if abs(vel_y) > abs(vel_x):
             return
@@ -680,12 +689,33 @@ class ShellWindow(Adw.ApplicationWindow):
                 focus_state=self.focus_state,
                 on_open_settings=lambda: (
                     self.stack.set_visible_child_name('settings'), self.present()),
+                on_power=self._show_power_menu,
             )
             self._shade.set_application(self.get_application())
         return self._shade
 
     def _show_shade(self) -> None:
         self._ensure_shade().show_shade()
+
+    def _show_power_menu(self) -> None:
+        if getattr(self, '_power_menu', None) is None:
+            from power_menu import PowerMenu
+            self._power_menu = PowerMenu()
+            self._power_menu.set_application(self.get_application())
+        self._power_menu.show_menu()
+
+    def _show_keyboard(self) -> None:
+        """Force the on-screen keyboard up via squeekboard's D-Bus interface."""
+        from gi.repository import Gio
+        try:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            bus.call_sync(
+                'sm.puri.OSK0', '/sm/puri/OSK0', 'sm.puri.OSK0', 'SetVisible',
+                GLib.Variant('(b)', (True,)), None,
+                Gio.DBusCallFlags.NONE, 500, None,
+            )
+        except Exception:
+            pass
 
     def _show_switcher(self) -> None:
         if self._switcher is None:

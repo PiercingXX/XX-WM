@@ -96,21 +96,26 @@ class PowerMenu(Gtk.Window):
         card.set_margin_start(32)
         card.set_margin_end(32)
 
-        poweroff_btn = Gtk.Button(label='Power off')
-        poweroff_btn.add_css_class('power-menu-btn')
-        poweroff_btn.connect('clicked', lambda _: self._action('poweroff'))
+        suspend_btn = Gtk.Button(label='Suspend')
+        suspend_btn.add_css_class('power-menu-btn')
+        suspend_btn.connect('clicked', lambda _: self._action('suspend'))
 
         restart_btn = Gtk.Button(label='Restart')
         restart_btn.add_css_class('power-menu-btn')
         restart_btn.connect('clicked', lambda _: self._action('reboot'))
+
+        poweroff_btn = Gtk.Button(label='Power off')
+        poweroff_btn.add_css_class('power-menu-btn')
+        poweroff_btn.connect('clicked', lambda _: self._action('poweroff'))
 
         cancel_btn = Gtk.Button(label='Cancel')
         cancel_btn.add_css_class('power-menu-btn')
         cancel_btn.add_css_class('power-menu-cancel')
         cancel_btn.connect('clicked', lambda _: self._dismiss())
 
-        card.append(poweroff_btn)
+        card.append(suspend_btn)
         card.append(restart_btn)
+        card.append(poweroff_btn)
         card.append(cancel_btn)
         scrim.append(card)
         return scrim

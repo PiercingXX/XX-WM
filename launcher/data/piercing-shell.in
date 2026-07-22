@@ -18,8 +18,11 @@ if command -v lisgd >/dev/null 2>&1; then
                 if ($i ~ /^event/) { print "/dev/input/" $i; exit }
         }' /proc/bus/input/devices)}
     if [ -n "$_touch_dev" ] && [ -r "$_touch_dev" ]; then
+        # Bottom-edge swipe up: a short flick raises the keyboard, a long
+        # swipe goes home. Distance field: S = short, L = long.
         lisgd -d "$_touch_dev" \
-            -g "1,DU,B,*,R,@bindir@/piercing-ipc gesture.home" \
+            -g "1,DU,B,S,R,@bindir@/piercing-ipc gesture.keyboard" \
+            -g "1,DU,B,L,R,@bindir@/piercing-ipc gesture.home" \
             -g "1,UD,T,*,R,@bindir@/piercing-ipc gesture.shade" \
             -g "1,LR,L,*,R,@bindir@/piercing-ipc gesture.back" \
             -g "1,RL,R,*,R,@bindir@/piercing-ipc gesture.back" &

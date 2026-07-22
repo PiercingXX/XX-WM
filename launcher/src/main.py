@@ -187,6 +187,8 @@ class PiercingShellApplication(Adw.Application):
             GLib.idle_add(_go_home)
         elif command == 'gesture.shade':
             GLib.idle_add(lambda: self._shell._show_shade() if self._shell else None)
+        elif command == 'gesture.keyboard':
+            GLib.idle_add(lambda: self._shell._show_keyboard() if self._shell else None)
         elif command == 'gesture.switcher':
             GLib.idle_add(lambda: self._shell._show_switcher() if self._shell else None)
         elif command == 'welcome':
