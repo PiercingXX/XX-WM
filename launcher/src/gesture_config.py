@@ -5,7 +5,7 @@ from pathlib import Path
 
 def _config_path() -> Path:
     # Resolved per-instance so a redirected HOME (tests) is honored
-    return Path.home() / '.config' / 'piercing-shell' / 'gestures.json'
+    return Path.home() / '.config' / 'xx-wm' / 'gestures.json'
 
 # Gesture slot → default action
 _DEFAULTS: dict[str, str] = {

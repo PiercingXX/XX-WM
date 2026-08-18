@@ -18,10 +18,10 @@ from window import ShellWindow
 _log = get_logger('main')
 
 
-class PiercingShellApplication(Adw.Application):
+class XXWMApplication(Adw.Application):
     def __init__(self, replay_welcome: bool = False) -> None:
         super().__init__(
-            application_id='io.piercingxx.PiercingShell',
+            application_id='io.piercingxx.XXWM',
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
         )
         self._replay_welcome = replay_welcome
@@ -64,7 +64,7 @@ class PiercingShellApplication(Adw.Application):
         # Warm swipe-bound apps in the real session only — under a host
         # shell (dev runs over Phosh) the preloads would grab the screen
         import os
-        if os.environ.get('PIERCING_SESSION'):
+        if os.environ.get('XX_WM_SESSION'):
             GLib.timeout_add_seconds(8, self._preload_gesture_apps)
 
         # Display power management: power button + fingerprint wake the screen.
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     replay_welcome = '--welcome' in argv
     if replay_welcome:
         argv.remove('--welcome')
-    app = PiercingShellApplication(replay_welcome=replay_welcome)
+    app = XXWMApplication(replay_welcome=replay_welcome)
     return app.run(argv)
 
 

@@ -1,4 +1,4 @@
-# Piercing WM — launcher
+# XX-WM — launcher
 
 GTK4/libadwaita launcher + shell surfaces for Linux phones. Despite the "WM" name, this is a *shell*, not a window manager — it runs on top of phoc (which does the window management) as a full Wayland session replacement (no GNOME, no Phosh). Text-first, gesture-driven, monochrome — the PiercingXX design language; `../design.md` is the UI spec.
 
@@ -12,11 +12,11 @@ GTK4/libadwaita launcher + shell surfaces for Linux phones. Despite the "WM" nam
 - **Quick actions** (`quick_actions.py`) — WiFi, BT, mobile data, airplane, torch, DnD, Focus; brightness/volume sliders; hardware-gated tiles hide themselves.
 - **Sounds** (`sound.py`, `data/sounds/`) — ringtone loop + notification sound via paplay/pw-play, gated by config, DnD, mutes.
 - **Weather** (`weather.py`) — Open-Meteo current conditions, 15-min cache, silent offline fallback.
-- **System settings** (`system_settings.py`) — WiFi scan/connect (nmcli), Bluetooth scan/pair (BlueZ D-Bus), sound output picker (pactl), battery (UPower); the settings page is system-only — every shell preference lives in `~/.config/piercing-shell/` (`../docs/config.md`).
+- **System settings** (`system_settings.py`) — WiFi scan/connect (nmcli), Bluetooth scan/pair (BlueZ D-Bus), sound output picker (pactl), battery (UPower); the settings page is system-only — every shell preference lives in `~/.config/xx-wm/` (`../docs/config.md`).
 - **Backup** (`backup.py`) — versioned JSON export/restore with validate-before-write.
 - **Call UI / Dialer / SMS** (`call_ui.py`, `dialer.py`, `sms.py`) — mmcli/ModemManager telephony surfaces; dialer rows star contacts for DnD.
-- **First-boot wizard** (`first_boot.py`) — PIN, theme, timezone, then the interactive gesture walkthrough (replay with `piercing-shell --welcome`).
-- **IPC server** (`ipc.py`) — Unix socket at `$XDG_RUNTIME_DIR/piercing-shell.sock` (`lock`, `shade.*`, `switcher.*`, `gesture.*`, `welcome`).
+- **First-boot wizard** (`first_boot.py`) — PIN, theme, timezone, then the interactive gesture walkthrough (replay with `xx-wm --welcome`).
+- **IPC server** (`ipc.py`) — Unix socket at `$XDG_RUNTIME_DIR/xx-wm.sock` (`lock`, `shade.*`, `switcher.*`, `gesture.*`, `welcome`).
 - **Modem monitor** (`modem_monitor.py`) — ModemManager DBus watcher for call events.
 - **Back arrow overlay** (`back_gesture.py`) — visual feedback only; gesture detection is lisgd's job, delivered via `gesture.*` IPC commands.
 
@@ -62,7 +62,7 @@ shellcheck`); the gate skips any tool that isn't on PATH rather than fail.
 ```bash
 # WiFi SSH (USB data drops while charging on the FP5)
 export PIERCING_DEVICE=<device-ip>
-export PIERCING_USER=user   # pmos default; check per device
+export XX_WM_USER=user   # pmos default; check per device
 ./scripts/deploy.sh
 ```
 
@@ -80,10 +80,10 @@ ps -p 1                            # systemd or OpenRC?
 
 ## Session config
 
-- Wayland session: `wayland-sessions/piercingxx.desktop` (display managers only scan `*.desktop`)
-- Session launcher: `libexec/piercing-session` (phoc wrapper, sets GTK_THEME from config); the in-session `bin/piercing-shell` starts squeekboard before the shell
-- systemd user service: `share/systemd/user/piercing-shell.service` (`Restart=on-failure`); OpenRC: `data/openrc/piercing-shell` → `/etc/init.d/` (postmarketOS default images)
-- Keyboard layouts: `data/squeekboard/` (PiercingXX Colemak, incl. terminal/email/url variants) → `datadir/piercing-shell/squeekboard`, symlinked by install.sh to `~/.local/share/squeekboard/keyboards/`
+- Wayland session: `wayland-sessions/xx-wm.desktop` (display managers only scan `*.desktop`)
+- Session launcher: `libexec/xx-wm-session` (phoc wrapper, sets GTK_THEME from config); the in-session `bin/xx-wm` starts squeekboard before the shell
+- systemd user service: `share/systemd/user/xx-wm.service` (`Restart=on-failure`); OpenRC: `data/openrc/xx-wm` → `/etc/init.d/` (postmarketOS default images)
+- Keyboard layouts: `data/squeekboard/` (PiercingXX Colemak, incl. terminal/email/url variants) → `datadir/xx-wm/squeekboard`, symlinked by install.sh to `~/.local/share/squeekboard/keyboards/`
 - phoc.ini: display scale per device (`devices/*/notes.md`); currently set for the FP5 (2.5)
 
 ## Fonts

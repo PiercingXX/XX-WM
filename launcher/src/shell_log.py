@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def setup_logging() -> None:
-    log_dir = Path.home() / '.local' / 'share' / 'piercing-shell'
+    log_dir = Path.home() / '.local' / 'share' / 'xx-wm'
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / 'shell.log'
 

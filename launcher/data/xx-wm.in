@@ -28,13 +28,13 @@ if command -v lisgd >/dev/null 2>&1; then
         # Bottom-edge swipe up: a short flick raises the keyboard, a long
         # swipe goes home. Distance field: S = short, L = long.
         lisgd -d "$_touch_dev" \
-            -g "1,DU,B,S,R,@bindir@/piercing-ipc gesture.keyboard" \
-            -g "1,DU,B,L,R,@bindir@/piercing-ipc gesture.home" \
-            -g "1,UD,T,*,R,@bindir@/piercing-ipc gesture.shade" \
-            -g "1,LR,L,*,R,@bindir@/piercing-ipc gesture.back" \
-            -g "1,RL,R,*,R,@bindir@/piercing-ipc gesture.back" &
+            -g "1,DU,B,S,R,@bindir@/xx-wm-ipc gesture.keyboard" \
+            -g "1,DU,B,L,R,@bindir@/xx-wm-ipc gesture.home" \
+            -g "1,UD,T,*,R,@bindir@/xx-wm-ipc gesture.shade" \
+            -g "1,LR,L,*,R,@bindir@/xx-wm-ipc gesture.back" \
+            -g "1,RL,R,*,R,@bindir@/xx-wm-ipc gesture.back" &
     else
-        echo "piercing-shell: no readable touchscreen for lisgd" >&2
+        echo "xx-wm: no readable touchscreen for lisgd" >&2
     fi
 fi
 

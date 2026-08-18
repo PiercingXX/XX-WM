@@ -6,7 +6,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=@bindir@/piercing-shell
+ExecStart=@bindir@/xx-wm
 Restart=on-failure
 RestartSec=2s
 # Ensure the shell inherits the Wayland display from the session

@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=PiercingXX
-Comment=PiercingXX — text-first Linux phone shell
-Exec=@libexecdir@/piercing-session
-Type=Application
-DesktopNames=PiercingXX

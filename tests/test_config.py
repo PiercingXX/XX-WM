@@ -15,7 +15,7 @@ class TestShellConfig:
 
     @pytest.fixture(autouse=True)
     def _isolated_home(self, tmp_path, monkeypatch):
-        # ShellConfig() reads ~/.config/piercing-shell/config.json in its
+        # ShellConfig() reads ~/.config/xx-wm/config.json in its
         # constructor; point HOME at a temp dir so the dev box's real shell
         # config never leaks into tests.
         monkeypatch.setenv('HOME', str(tmp_path / 'home'))

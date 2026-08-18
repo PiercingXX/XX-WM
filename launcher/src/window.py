@@ -43,7 +43,7 @@ _WEB_SEARCH_URL = 'https://duckduckgo.com/?q='
 class ShellWindow(Adw.ApplicationWindow):
     def __init__(self, application: Adw.Application) -> None:
         super().__init__(application=application, title='PiercingXX')
-        self.add_css_class('piercing-shell')
+        self.add_css_class('xx-wm')
 
         if _LAYER_SHELL and LayerShell.is_supported():
             LayerShell.init_for_window(self)
@@ -895,7 +895,7 @@ class ShellWindow(Adw.ApplicationWindow):
     def _build_settings_page(self) -> Gtk.Widget:
         from importlib.metadata import version as get_version
         try:
-            shell_version = get_version('piercing-shell')
+            shell_version = get_version('xx-wm')
         except Exception:
             shell_version = '0.1.1'
 
@@ -1669,7 +1669,7 @@ class ShellWindow(Adw.ApplicationWindow):
         return False
 
     def _setup_config_monitor(self) -> None:
-        """Hot reload: editing ~/.config/piercing-shell/* in a terminal is a
+        """Hot reload: editing ~/.config/xx-wm/* in a terminal is a
         first-class workflow (design.md "Settings scope"). Debounced; invalid
         files keep the last good config."""
         from gi.repository import Gio
@@ -1953,7 +1953,7 @@ class ShellWindow(Adw.ApplicationWindow):
 
         backup = export_backup(self.config)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'piercing-wm-backup-{timestamp}.json'
+        filename = f'xx-wm-backup-{timestamp}.json'
         filepath = Path.home() / filename
         
         filepath.write_text(json.dumps(backup, indent=2), encoding='utf-8')

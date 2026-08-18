@@ -3,7 +3,7 @@ Weather widget backend — Open-Meteo current conditions, no API key.
 
 Coordinates come from the `weather_lat`/`weather_lon` config floats (set
 manually — iio location is device-gated). Results cache to
-~/.cache/piercing-shell/weather.json and refresh at most every 15 minutes.
+~/.cache/xx-wm/weather.json and refresh at most every 15 minutes.
 Offline or unset → the widget silently shows `--°`. Fetches run on a daemon
 thread; the UI callback is dispatched via an injectable dispatcher
 (GLib.idle_add at runtime, synchronous in tests).
@@ -50,7 +50,7 @@ def format_current(temp_c: float, code: int) -> str:
 
 
 def default_cache_path() -> Path:
-    return Path.home() / '.cache' / 'piercing-shell' / 'weather.json'
+    return Path.home() / '.cache' / 'xx-wm' / 'weather.json'
 
 
 def _http_fetch(lat: float, lon: float) -> dict:

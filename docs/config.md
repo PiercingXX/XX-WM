@@ -1,6 +1,6 @@
-# Piercing WM — Config Reference
+# XX-WM — Config Reference
 
-Every shell preference lives in `~/.config/piercing-shell/`. The config file
+Every shell preference lives in `~/.config/xx-wm/`. The config file
 **is the public API**: edit it in a terminal and the running shell hot-reloads
 it (debounced; an invalid file is ignored and the last good config stays
 live). The in-shell Settings page covers system things only (network, sound
@@ -113,7 +113,7 @@ Flat `{gesture: action}`. Valid actions: `home`, `app_switcher`,
 
 ## Not in these files
 
-- Contacts: `~/.local/share/piercing-shell/contacts.json` or GNOME Contacts VCF.
-- Weather cache: `~/.cache/piercing-shell/weather.json` (safe to delete).
-- Logs: `~/.local/share/piercing-shell/shell.log`.
+- Contacts: `~/.local/share/xx-wm/contacts.json` or GNOME Contacts VCF.
+- Weather cache: `~/.cache/xx-wm/weather.json` (safe to delete).
+- Logs: `~/.local/share/xx-wm/shell.log`.
 - Backups: versioned JSON via Settings → Backup; see `launcher/src/backup.py` for the exact scope.

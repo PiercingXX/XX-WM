@@ -1,6 +1,6 @@
-# Piercing WM — Design Spec
+# XX-WM — Design Spec
 
-This document is the UI contract for Piercing WM: every surface, theme, and gesture the shell provides. Anything the shell draws must conform to it.
+This document is the UI contract for XX-WM: every surface, theme, and gesture the shell provides. Anything the shell draws must conform to it.
 
 ## Design language — PiercingXX
 
@@ -98,7 +98,7 @@ Versioned JSON export covering: home slots, folders + membership, pins, app rena
 
 ## System surfaces
 
-Piercing WM *is* the system UI, so the shell owns every surface beyond the launcher. These extend the same design language and already exist in `launcher/src/`:
+XX-WM *is* the system UI, so the shell owns every surface beyond the launcher. These extend the same design language and already exist in `launcher/src/`:
 
 lock screen (6-digit PIN, fingerprint when hardware supports), notification shade + daemon, quick settings tiles, app switcher, call UI + dialer + SMS + contacts, first-boot wizard, power menu, volume/brightness HUD (wob), virtual keyboard (squeekboard with the PiercingXX Colemak layouts), display/power management.
 
@@ -125,7 +125,7 @@ Modeled on the Pixel's Focus Mode. The user picks a list of distracting apps; wh
 
 ### Settings scope
 
-The in-shell Settings page is **system-only**: the things a config file can't own — WiFi networks, Bluetooth pairing, cellular/APN, sound devices, battery/power, system updates, backup/restore actions, about. It replaces both GNOME Settings and phosh-mobile-settings for everything that applies to this shell. Every *shell* preference — theme, fonts, text size, alignment, home slots, widgets, gestures, sounds, DnD/Focus rules — lives in `~/.config/piercing-shell/` and is edited there (or through dedicated surfaces like home edit mode). The shell hot-reloads the config file, so editing it in a terminal is a first-class workflow.
+The in-shell Settings page is **system-only**: the things a config file can't own — WiFi networks, Bluetooth pairing, cellular/APN, sound devices, battery/power, system updates, backup/restore actions, about. It replaces both GNOME Settings and phosh-mobile-settings for everything that applies to this shell. Every *shell* preference — theme, fonts, text size, alignment, home slots, widgets, gestures, sounds, DnD/Focus rules — lives in `~/.config/xx-wm/` and is edited there (or through dedicated surfaces like home edit mode). The shell hot-reloads the config file, so editing it in a terminal is a first-class workflow.
 
 ## Non-goals
 

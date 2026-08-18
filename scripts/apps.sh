@@ -1,5 +1,5 @@
 #!/bin/sh
-# Piercing WM — default app set (todo.md Workstream 17).
+# XX-WM — default app set (todo.md Workstream 17).
 # Called from install.sh: apps.sh <pkg:apk|apt> <sudo:doas|sudo>
 # Every item is guarded — one missing package never hard-fails the menu.
 # GitHub.com/PiercingXX

@@ -1,5 +1,5 @@
 project(
-  'piercing-shell',
+  'xx-wm',
   version: '0.1.1',
   meson_version: '>=0.60.0',
 )
@@ -13,7 +13,7 @@ bindir       = join_paths(prefix, get_option('bindir'))
 libexecdir   = join_paths(prefix, get_option('libexecdir'))
 datadir_abs  = join_paths(prefix, get_option('datadir'))
 
-shell_subdir = 'piercing-shell'
+shell_subdir = 'xx-wm'
 shell_datadir = join_paths(get_option('datadir'), shell_subdir)
 
 # The shell is a flat set of modules, not an installable package: it uses
@@ -106,25 +106,25 @@ install_data(
   install_dir: join_paths(shell_datadir, 'squeekboard', 'url'),
 )
 
-# Shell Python launcher (runs main.py) → $prefix/bin/piercing-shell
+# Shell Python launcher (runs main.py) → $prefix/bin/xx-wm
 launcher_conf = configuration_data()
 launcher_conf.set('python', python.full_path())
 launcher_conf.set('shell_dir', join_paths(prefix, shell_datadir))
 launcher_conf.set('bindir', bindir)
 
 configure_file(
-  input: 'data/piercing-shell.in',
-  output: 'piercing-shell',
+  input: 'data/xx-wm.in',
+  output: 'xx-wm',
   configuration: launcher_conf,
   install: true,
   install_dir: get_option('bindir'),
   install_mode: 'rwxr-xr-x',
 )
 
-# IPC client (lisgd bindings, wake hooks) → $prefix/bin/piercing-ipc
+# IPC client (lisgd bindings, wake hooks) → $prefix/bin/xx-wm-ipc
 configure_file(
-  input: 'data/piercing-ipc.in',
-  output: 'piercing-ipc',
+  input: 'data/xx-wm-ipc.in',
+  output: 'xx-wm-ipc',
   configuration: launcher_conf,
   install: true,
   install_dir: get_option('bindir'),
@@ -136,15 +136,15 @@ desktop_conf = configuration_data()
 desktop_conf.set('bindir', bindir)
 
 configure_file(
-  input: 'data/io.piercingxx.PiercingShell.desktop.in',
-  output: 'io.piercingxx.PiercingShell.desktop',
+  input: 'data/io.piercingxx.XXWM.desktop.in',
+  output: 'io.piercingxx.XXWM.desktop',
   configuration: desktop_conf,
   install: true,
   install_dir: join_paths(get_option('datadir'), 'applications'),
 )
 
-# Session launcher (phoc wrapper) → $prefix/libexec/piercing-session
-# Wayland session entry → $prefix/share/wayland-sessions/piercingxx.desktop
+# Session launcher (phoc wrapper) → $prefix/libexec/xx-wm-session
+# Wayland session entry → $prefix/share/wayland-sessions/xx-wm.desktop
 # Display managers only scan *.desktop here — a .session suffix is ignored.
 session_conf = configuration_data()
 session_conf.set('bindir', bindir)
@@ -152,8 +152,8 @@ session_conf.set('libexecdir', libexecdir)
 session_conf.set('datadir', datadir_abs)
 
 configure_file(
-  input: 'data/piercing-session.in',
-  output: 'piercing-session',
+  input: 'data/xx-wm-session.in',
+  output: 'xx-wm-session',
   configuration: session_conf,
   install: true,
   install_dir: get_option('libexecdir'),
@@ -161,8 +161,8 @@ configure_file(
 )
 
 configure_file(
-  input: 'data/piercingxx.desktop.in',
-  output: 'piercingxx.desktop',
+  input: 'data/xx-wm.desktop.in',
+  output: 'xx-wm.desktop',
   configuration: session_conf,
   install: true,
   install_dir: join_paths(get_option('datadir'), 'wayland-sessions'),
@@ -170,8 +170,8 @@ configure_file(
 
 # systemd user service
 configure_file(
-  input: 'data/systemd/piercing-shell.service',
-  output: 'piercing-shell.service',
+  input: 'data/systemd/xx-wm.service',
+  output: 'xx-wm.service',
   configuration: session_conf,
   install: true,
   install_dir: join_paths(get_option('datadir'), 'systemd', 'user'),
@@ -179,13 +179,13 @@ configure_file(
 
 # OpenRC init script (postmarketOS default images)
 install_data(
-  'data/openrc/piercing-shell',
+  'data/openrc/xx-wm',
   install_dir: join_paths(get_option('sysconfdir'), 'init.d'),
   install_mode: 'rwxr-xr-x',
 )
 
 # logind drop-in: let the shell own the power key instead of instant-poweroff
 install_data(
-  'data/logind/10-piercing-power.conf',
+  'data/logind/10-xx-wm-power.conf',
   install_dir: join_paths(get_option('sysconfdir'), 'systemd', 'logind.conf.d'),
 )

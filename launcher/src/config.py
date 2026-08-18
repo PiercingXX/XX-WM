@@ -97,8 +97,12 @@ DEFAULT_CONFIG = {
 
 class ShellConfig:
     def __init__(self) -> None:
-        self.config_dir = Path.home() / '.config' / 'piercing-shell'
+        self.config_dir = Path.home() / '.config' / 'xx-wm'
         self.config_path = self.config_dir / 'config.json'
+        # One-time migration from the pre-rename config dir (piercing-shell).
+        legacy_dir = Path.home() / '.config' / 'piercing-shell'
+        if legacy_dir.is_dir() and not self.config_dir.exists():
+            legacy_dir.rename(self.config_dir)
         self.data = dict(DEFAULT_CONFIG)
         self.load()
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Piercing WM installer — whiptail TUI, cached sudo, network check up front.
+# XX-WM installer — whiptail TUI, cached sudo, network check up front.
 # POSIX sh; runs on postmarketOS/Alpine (apk) and Debian/Mobian (apt).
 # GitHub.com/PiercingXX
 
@@ -78,7 +78,7 @@ install_deps() {
 }
 
 build_install() {
-    echo "Building Piercing WM..."
+    echo "Building XX-WM..."
     cd "$REPO_DIR/launcher" || return 1
     meson setup build --prefix=/usr --reconfigure || meson setup build --prefix=/usr || return 1
     $SUDO meson install -C build || return 1
@@ -86,7 +86,7 @@ build_install() {
 
     # squeekboard only reads the user path — symlink the installed layouts
     mkdir -p "$HOME/.local/share/squeekboard"
-    ln -sfn /usr/share/piercing-shell/squeekboard \
+    ln -sfn /usr/share/xx-wm/squeekboard \
         "$HOME/.local/share/squeekboard/keyboards"
 
     # piercing-dots phone profile (parallel task — tolerate its loud failure)
@@ -100,19 +100,19 @@ enable_service() {
     init_comm=$(ps -p 1 -o comm= 2>/dev/null || echo unknown)
     if [ "$init_comm" = systemd ]; then
         systemctl --user daemon-reload 2>/dev/null || true
-        systemctl --user enable piercing-shell 2>/dev/null || \
-            echo "warn: enable the service after first login: systemctl --user enable piercing-shell" >&2
+        systemctl --user enable xx-wm 2>/dev/null || \
+            echo "warn: enable the service after first login: systemctl --user enable xx-wm" >&2
     else
         # postmarketOS default images are OpenRC
-        $SUDO rc-update add piercing-shell default 2>/dev/null || \
-            echo "warn: rc-update add piercing-shell default failed" >&2
+        $SUDO rc-update add xx-wm default 2>/dev/null || \
+            echo "warn: rc-update add xx-wm default failed" >&2
     fi
 }
 
 do_install() {
     install_deps
     if build_install; then
-        msg_box "Piercing WM installed. Select the PiercingOS session at next login, or reboot."
+        msg_box "XX-WM installed. Select the PiercingOS session at next login, or reboot."
     else
         msg_box "Install hit an error — check the terminal output."
     fi
@@ -122,16 +122,16 @@ do_update() {
     echo "Updating repo..."
     git -C "$REPO_DIR" pull --ff-only || echo "warn: git pull failed" >&2
     if build_install; then
-        msg_box "Piercing WM updated."
+        msg_box "XX-WM updated."
     else
         msg_box "Update hit an error — check the terminal output."
     fi
 }
 
 menu() {
-    whiptail --backtitle "GitHub.com/PiercingXX" --title "Piercing WM" \
+    whiptail --backtitle "GitHub.com/PiercingXX" --title "XX-WM" \
         --menu "Run options in order:" 0 0 0 \
-        "Install"             "Install Piercing WM (deps, build, service)" \
+        "Install"             "Install XX-WM (deps, build, service)" \
         "Update"              "Pull latest and reinstall" \
         "Install phone apps"  "Browser, calculator, Tailscale, Skippy, Waydroid..." \
         "Reboot"              "Reboot the system" \

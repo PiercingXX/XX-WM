@@ -1,11 +1,11 @@
 #!/bin/sh
 # Session launcher: starts the phoc compositor with PiercingOS shell as the client.
-# Reads ~/.config/piercing-shell/config.json to propagate theme preference to GTK.
+# Reads ~/.config/xx-wm/config.json to propagate theme preference to GTK.
 
 _prefer_dark=$(python3 -c "
 import json, sys
 try:
-    cfg = json.load(open('$HOME/.config/piercing-shell/config.json'))
+    cfg = json.load(open('$HOME/.config/xx-wm/config.json'))
     print('1' if cfg.get('prefer_dark', True) else '0')
 except Exception:
     print('1')
@@ -22,10 +22,10 @@ else
 fi
 
 # Ensure Space Mono and JetBrains Mono are on the font path if installed into the overlay
-export FONTCONFIG_PATH="@datadir@/piercing-shell/fonts:${FONTCONFIG_PATH:-/etc/fonts}"
+export FONTCONFIG_PATH="@datadir@/xx-wm/fonts:${FONTCONFIG_PATH:-/etc/fonts}"
 
 # Marks the real session — enables session-only behavior (app preloading)
-export PIERCING_SESSION=1
+export XX_WM_SESSION=1
 
 # Phone behavior: every app opens maximized (full-screen), never floating.
 # phoc reads this from the sm.puri.phoc GSetting (not phoc.ini) — set it
@@ -36,5 +36,5 @@ if command -v gsettings >/dev/null 2>&1 && \
 fi
 
 exec phoc \
-  -C @datadir@/piercing-shell/phoc.ini \
-  -E "@bindir@/piercing-shell"
+  -C @datadir@/xx-wm/phoc.ini \
+  -E "@bindir@/xx-wm"

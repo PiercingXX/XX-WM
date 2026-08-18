@@ -1,5 +1,5 @@
 #!/bin/sh
-# Piercing WM - Pre-commit gate script
+# XX-WM - Pre-commit gate script
 # Runs py_compile on all sources + pytest + shellcheck
 
 set -e

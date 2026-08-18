@@ -131,7 +131,7 @@ def keyboard_step_available() -> bool:
     return any(
         path.exists() for path in (
             Path.home() / '.local' / 'share' / 'squeekboard' / 'keyboards',
-            Path('/usr/share/piercing-shell/squeekboard'),
+            Path('/usr/share/xx-wm/squeekboard'),
         )
     )
 
@@ -141,7 +141,7 @@ class FirstBootWizard(Gtk.Window):
     First-run setup (PIN, theme, timezone) followed by the usage walkthrough:
     an interactive gesture tour, shade / DnD & Focus / config-file pages, and
     a try-the-keyboard step when squeekboard is present. `tour_only=True`
-    replays just the walkthrough (`piercing-shell --welcome`).
+    replays just the walkthrough (`xx-wm --welcome`).
     """
 
     def __init__(self, on_complete: Callable[[], None],
@@ -210,7 +210,7 @@ class FirstBootWizard(Gtk.Window):
     @staticmethod
     def is_needed() -> bool:
         from pathlib import Path
-        config_path = Path.home() / '.config' / 'piercing-shell' / 'config.json'
+        config_path = Path.home() / '.config' / 'xx-wm' / 'config.json'
         return not config_path.exists()
 
     def _page(self) -> Gtk.Box:
@@ -556,10 +556,10 @@ class FirstBootWizard(Gtk.Window):
         page, footer = self._tour_scaffold(
             'Make it yours',
             'Long-press the home screen to edit your slots.\n\nEvery shell '
-            'preference lives in ~/.config/piercing-shell/ — edit it in a '
+            'preference lives in ~/.config/xx-wm/ — edit it in a '
             'terminal and the shell reloads live. The full reference is '
             'docs/config.md.\n\nReplay this tour anytime with:\n'
-            'piercing-shell --welcome')
+            'xx-wm --welcome')
         done_btn = Gtk.Button(label='Done')
         done_btn.add_css_class('wizard-next')
         done_btn.connect('clicked', lambda _b: self._finish_tour())

@@ -14,8 +14,8 @@ import threading
 from pathlib import Path
 
 _SOUND_DIR_CANDIDATES = [
-    Path('/usr/share/piercing-shell/sounds'),
-    Path('/usr/local/share/piercing-shell/sounds'),
+    Path('/usr/share/xx-wm/sounds'),
+    Path('/usr/local/share/xx-wm/sounds'),
     Path(__file__).resolve().parent.parent / 'data' / 'sounds',
 ]
 
